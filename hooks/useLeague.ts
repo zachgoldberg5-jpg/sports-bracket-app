@@ -6,9 +6,7 @@ export function useLeagues() {
   const { leagues, loadingLeagues, loadLeagues } = useLeagueStore();
 
   useEffect(() => {
-    if (leagues.every((l) => l.status === 'off_season')) {
-      loadLeagues();
-    }
+    loadLeagues();
   }, []);
 
   return { leagues, loading: loadingLeagues, refresh: loadLeagues };

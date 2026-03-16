@@ -11,12 +11,22 @@ interface InviteCodeCardProps {
 export function InviteCodeCard({ code, groupName }: InviteCodeCardProps) {
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
-  const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const getInviteLink = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const base = window.location.origin + window.location.pathname.replace(/\/(tabs).*$/, '');
+      return `${base}/(tabs)/groups/join?code=${code}`;
+    }
+    return null;
+  };
 
   const handleShare = async () => {
+    const link = getInviteLink();
     try {
       await Share.share({
-        message: `Join my Sports Bracket group "${groupName}"!\nUse invite code: ${code}\n\nDownload Sports Bracket and enter the code in "Join Group".`,
+        message: `Join my Sports Bracket group "${groupName}"!\nUse invite code: ${code}${link ? `\n\nOr tap: ${link}` : '\n\nDownload Sports Bracket and enter the code in "Join Group".'}`,
         title: `Join ${groupName} on Sports Bracket`,
       });
     } catch {
@@ -24,10 +34,25 @@ export function InviteCodeCard({ code, groupName }: InviteCodeCardProps) {
     }
   };
 
-  const handleCopy = async () => {
-    // Clipboard not available without expo-clipboard — show visual feedback only
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyCode = async () => {
+    try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(code);
+      }
+    } catch { /* ignore */ }
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  const handleCopyLink = async () => {
+    const link = getInviteLink() ?? `Join code: ${code}`;
+    try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(link);
+      }
+    } catch { /* ignore */ }
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   return (
@@ -38,22 +63,32 @@ export function InviteCodeCard({ code, groupName }: InviteCodeCardProps) {
       <View style={styles.actions}>
         <TouchableOpacity
           style={[styles.button, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          onPress={handleCopy}
+          onPress={handleCopyCode}
           activeOpacity={0.8}
         >
           <Text style={[styles.buttonText, { color: theme.text }]}>
-            {copied ? '✓ Copied' : 'Copy Code'}
+            {codeCopied ? '✓ Copied' : 'Copy Code'}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.button, styles.primaryButton]}
-          onPress={handleShare}
+          style={[styles.button, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          onPress={handleCopyLink}
           activeOpacity={0.8}
         >
-          <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>Share Invite</Text>
+          <Text style={[styles.buttonText, { color: theme.text }]}>
+            {linkCopied ? '✓ Link Copied' : 'Copy Link'}
+          </Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity
+        style={[styles.button, styles.primaryButton, styles.shareFullWidth]}
+        onPress={handleShare}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>Share Invite</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -92,6 +127,10 @@ const styles = StyleSheet.create({
   primaryButton: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
+  },
+  shareFullWidth: {
+    width: '100%',
+    justifyContent: 'center',
   },
   buttonText: {
     fontSize: FONT_SIZE.sm,

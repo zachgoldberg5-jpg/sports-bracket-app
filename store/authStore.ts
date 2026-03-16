@@ -15,7 +15,7 @@ interface AuthState {
   signInWithEmail: (email: string, password: string) => Promise<string | null>;
   signUpWithEmail: (email: string, password: string, username: string) => Promise<string | null>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: Partial<Profile>) => Promise<void>;
+  updateProfile: (updates: Partial<Profile>) => Promise<string | null>;
   setSession: (session: Session | null) => void;
   signInAsGuest: () => void;
 }
@@ -111,7 +111,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateProfile: async (updates) => {
     const { user } = get();
-    if (!user) return;
+    if (!user) return 'Not logged in.';
 
     const dbUpdates: Record<string, unknown> = {};
     if (updates.displayName !== undefined) dbUpdates.display_name = updates.displayName;
@@ -124,11 +124,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       .update(dbUpdates)
       .eq('id', user.id);
 
-    if (!error) {
-      set((state) => ({
-        profile: state.profile ? { ...state.profile, ...updates } : null,
-      }));
-    }
+    if (error) return error.message;
+
+    set((state) => ({
+      profile: state.profile ? { ...state.profile, ...updates } : null,
+    }));
+    return null;
   },
 
   setSession: (session) => {

@@ -8,7 +8,6 @@ import {
   ScrollView,
   Switch,
   useColorScheme,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,20 +24,28 @@ export default function SettingsScreen() {
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
   const [username, setUsername] = useState(profile?.username ?? '');
   const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   async function handleSave() {
+    setSaveMsg('');
+    setSaveError('');
     if (!displayName.trim()) {
-      Alert.alert('Name required', 'Display name cannot be empty.');
+      setSaveError('Display name cannot be empty.');
       return;
     }
     setSaving(true);
-    await updateProfile({
+    const error = await updateProfile({
       displayName: displayName.trim(),
       username: username.trim().toLowerCase(),
     });
     setSaving(false);
-    Alert.alert('Saved', 'Your profile has been updated.');
+    if (error) {
+      setSaveError(error.includes('unique') ? 'That username is already taken.' : 'Failed to save. Please try again.');
+    } else {
+      setSaveMsg('Profile updated!');
+    }
   }
 
   return (
@@ -83,6 +90,9 @@ export default function SettingsScreen() {
             <Text style={styles.saveButtonText}>Save Changes</Text>
           )}
         </TouchableOpacity>
+
+        {saveMsg ? <Text style={styles.successText}>{saveMsg}</Text> : null}
+        {saveError ? <Text style={styles.errorText}>{saveError}</Text> : null}
 
         {/* Notifications section */}
         <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>Notifications</Text>
@@ -158,6 +168,8 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
   saveButtonText: { color: '#FFF', fontSize: FONT_SIZE.base, fontWeight: FONT_WEIGHT.bold },
+  successText: { fontSize: FONT_SIZE.sm, color: '#22C55E', textAlign: 'center', marginTop: SPACING.xs },
+  errorText: { fontSize: FONT_SIZE.sm, color: '#EF4444', textAlign: 'center', marginTop: SPACING.xs },
   switchRow: { flexDirection: 'row', alignItems: 'center', padding: SPACING.base, gap: SPACING.md },
   switchContent: { flex: 1 },
   switchLabel: { fontSize: FONT_SIZE.base, fontWeight: FONT_WEIGHT.medium },

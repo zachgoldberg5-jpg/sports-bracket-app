@@ -8,11 +8,10 @@ import {
   ScrollView,
   useColorScheme,
   ActivityIndicator,
-  Alert,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
@@ -26,21 +25,30 @@ export default function SignInScreen() {
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
 
+  const { registered } = useLocalSearchParams<{ registered?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const signInWithEmail = useAuthStore((s) => s.signInWithEmail);
 
   async function handleEmailSignIn() {
+    setErrorMsg('');
     if (!email || !password) {
-      Alert.alert('Missing fields', 'Please enter your email and password.');
+      setErrorMsg('Please enter your email and password.');
       return;
     }
     setLoading(true);
     const error = await signInWithEmail(email.trim().toLowerCase(), password);
     setLoading(false);
     if (error) {
-      Alert.alert('Sign in failed', error);
+      if (error.toLowerCase().includes('email not confirmed')) {
+        setErrorMsg('Please confirm your email first — check your inbox for a confirmation link.');
+      } else if (error.toLowerCase().includes('invalid login') || error.toLowerCase().includes('invalid credentials')) {
+        setErrorMsg('Incorrect email or password.');
+      } else {
+        setErrorMsg(error);
+      }
     } else {
       router.replace('/(tabs)');
     }
@@ -61,7 +69,7 @@ export default function SignInScreen() {
       });
 
       if (error) {
-        Alert.alert('Apple Sign In failed', error.message);
+        setErrorMsg('Apple Sign In failed: ' + error.message);
         return;
       }
 
@@ -79,7 +87,7 @@ export default function SignInScreen() {
       router.replace('/(tabs)');
     } catch (err: unknown) {
       if ((err as { code?: string }).code !== 'ERR_CANCELED') {
-        Alert.alert('Apple Sign In failed', 'An unexpected error occurred.');
+        setErrorMsg('Apple Sign In failed. Please try again.');
       }
     }
   }
@@ -95,7 +103,7 @@ export default function SignInScreen() {
     });
 
     if (error || !data.url) {
-      Alert.alert('Google Sign In failed', error?.message ?? 'Could not start auth flow.');
+      setErrorMsg(error?.message ?? 'Could not start Google sign in.');
       return;
     }
 
@@ -118,6 +126,12 @@ export default function SignInScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.back}>
           <Text style={[styles.backText, { color: COLORS.primary }]}>← Back</Text>
         </TouchableOpacity>
+
+        {registered ? (
+          <View style={styles.successBanner}>
+            <Text style={styles.successBannerText}>Account created! Sign in below.</Text>
+          </View>
+        ) : null}
 
         <Text style={[styles.title, { color: theme.text }]}>Welcome back</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -154,6 +168,8 @@ export default function SignInScreen() {
               Forgot password?
             </Text>
           </TouchableOpacity>
+
+          {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
           <TouchableOpacity
             style={[styles.primaryButton, loading && styles.disabled]}
@@ -233,6 +249,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.base,
     fontSize: FONT_SIZE.base,
   },
+  successBanner: {
+    backgroundColor: '#166534',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  successBannerText: { color: '#86EFAC', fontSize: FONT_SIZE.sm, fontWeight: FONT_WEIGHT.semibold, textAlign: 'center' },
+  errorText: { fontSize: FONT_SIZE.sm, color: '#EF4444', marginTop: SPACING.xs },
   forgotWrap: { alignSelf: 'flex-end' },
   forgotText: { fontSize: FONT_SIZE.sm },
   primaryButton: {

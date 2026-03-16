@@ -10,7 +10,7 @@ export const ESPN_LEAGUE_PATHS: Record<LeagueId, { sport: string; league: string
   ncaa_mm: { sport: 'basketball', league: 'mens-college-basketball' },
   ucl: { sport: 'soccer', league: 'uefa.champions' },
   fifa_wc: null, // TheSportsDB only
-  wbc: null, // Manual bracket
+  wbc: null,     // Manual bracket
 };
 
 // TheSportsDB league IDs
@@ -20,7 +20,7 @@ export const THESPORTSDB_IDS: Record<LeagueId, string | null> = {
   nhl: '4380',
   mlb: '4424',
   mls: '4346',
-  ncaa_mm: null, // ESPN only
+  ncaa_mm: null,
   ucl: '4480',
   fifa_wc: '4429',
   wbc: null,
@@ -66,8 +66,8 @@ export const LEAGUE_CONFIGS: Record<LeagueId, Omit<League, 'status' | 'season'>>
     id: 'ncaa_mm',
     name: 'March Madness',
     sport: 'College Basketball',
-    primaryColor: '#003087',
-    secondaryColor: '#FFD700',
+    primaryColor: '#F47321',   // Official March Madness orange
+    secondaryColor: '#003082', // NCAA navy
   },
   ucl: {
     id: 'ucl',
@@ -92,51 +92,53 @@ export const LEAGUE_CONFIGS: Record<LeagueId, Omit<League, 'status' | 'season'>>
   },
 };
 
-// Returns a human-readable season label for the current season, e.g. "2025-26" or "2025"
+// Sport emoji for UI display
+export const LEAGUE_EMOJI: Record<LeagueId, string> = {
+  nba:      '🏀',
+  nfl:      '🏈',
+  nhl:      '🏒',
+  mlb:      '⚾',
+  mls:      '⚽',
+  ncaa_mm:  '🏀',
+  ucl:      '⚽',
+  fifa_wc:  '🌍',
+  wbc:      '⚾',
+};
+
 export function getDisplaySeason(leagueId: LeagueId): string {
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth(); // 0-indexed (0 = Jan)
+  const month = now.getMonth();
 
-  // Soccer: season runs July–June (UCL, MLS)
   if (['ucl', 'mls'].includes(leagueId)) {
     return month >= 6
       ? `${year}-${String(year + 1).slice(2)}`
       : `${year - 1}-${String(year).slice(2)}`;
   }
-
-  // NBA / NHL: season runs October–June
   if (['nba', 'nhl'].includes(leagueId)) {
     return month >= 9
       ? `${year}-${String(year + 1).slice(2)}`
       : `${year - 1}-${String(year).slice(2)}`;
   }
-
-  // NCAA March Madness: academic year, starts ~October
   if (leagueId === 'ncaa_mm') {
     return month >= 6
       ? `${year}-${String(year + 1).slice(2)}`
       : `${year - 1}-${String(year).slice(2)}`;
   }
-
-  // NFL: named by the year the season kicks off (Sept–Feb)
   if (leagueId === 'nfl') {
     return month >= 8 ? String(year) : String(year - 1);
   }
-
-  // MLB, FIFA WC, WBC: single calendar year
   return String(year);
 }
 
-// Display order on the dashboard
 export const LEAGUE_ORDER: LeagueId[] = [
+  'ncaa_mm',
   'wbc',
   'nba',
-  'nfl',
   'nhl',
   'mlb',
-  'ncaa_mm',
   'mls',
   'ucl',
   'fifa_wc',
+  'nfl',
 ];

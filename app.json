@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Sports Bracket",
+    "name": "Gold Picks",
     "slug": "sports-bracket-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -64,7 +64,8 @@
       "expo-apple-authentication"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/sports-bracket-app"
     },
     "extra": {
       "router": {

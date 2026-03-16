@@ -10,7 +10,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useGroupStore } from '../../../store/groupStore';
 import { useAuthStore } from '../../../store/authStore';
 import { PremiumGate } from '../../../components/ui/PremiumGate';
@@ -27,6 +27,11 @@ export default function JoinGroupScreen() {
   const groupStore = useGroupStore();
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
+  const { code: codeParam } = useLocalSearchParams<{ code?: string }>();
+
+  React.useEffect(() => {
+    if (codeParam) setInviteCode(codeParam.toUpperCase());
+  }, [codeParam]);
 
   async function handleJoin() {
     if (inviteCode.trim().length < 6) {

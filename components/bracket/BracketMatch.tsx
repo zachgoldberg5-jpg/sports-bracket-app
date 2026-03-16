@@ -4,17 +4,15 @@ import { useColorScheme } from 'react-native';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
 import type { Match, Team } from '../../types';
 
-const MATCH_WIDTH = 148;
-const MATCH_HEIGHT = 88;
+const MATCH_WIDTH = 160;
+const MATCH_HEIGHT = 96;
 
 interface BracketMatchProps {
   match: Match;
-  /** If provided, this match is a prediction picker and team can be selected */
   onPickTeam?: (matchId: string, teamId: string) => void;
   selectedTeamId?: string;
   isLocked?: boolean;
   primaryColor?: string;
-  /** Flip layout for right-side bracket (score/logo on left, name on right) */
   isRightSide?: boolean;
 }
 
@@ -46,19 +44,27 @@ export function BracketMatch({
     };
 
     const bgColor = isPicked
-      ? primaryColor + '33'
+      ? primaryColor + '30'
       : isWinner && !isPredictionMode
-      ? COLORS.success + '22'
+      ? COLORS.success + '20'
       : 'transparent';
+
+    const seedEl = team?.seed !== undefined ? (
+      <View style={[styles.seedBadge, { backgroundColor: isPicked ? primaryColor + '55' : theme.surfaceAlt }]}>
+        <Text style={[styles.seedText, { color: isPicked ? primaryColor : theme.textTertiary }]}>
+          {team.seed}
+        </Text>
+      </View>
+    ) : null;
 
     const logoEl = (
       <View style={styles.logoBox}>
         {team?.logoUrl ? (
           <Image source={{ uri: team.logoUrl }} style={styles.logo} resizeMode="contain" />
         ) : (
-          <View style={[styles.logoPlaceholder, { backgroundColor: theme.surfaceAlt }]}>
+          <View style={[styles.logoPlaceholder, { backgroundColor: isPicked ? primaryColor + '33' : theme.surfaceAlt }]}>
             {team && (
-              <Text style={[styles.abbr, { color: theme.textSecondary }]}>
+              <Text style={[styles.abbr, { color: isPicked ? primaryColor : theme.textSecondary }]}>
                 {team.abbreviation?.substring(0, 3) ?? '?'}
               </Text>
             )}
@@ -67,17 +73,14 @@ export function BracketMatch({
       </View>
     );
 
-    const seedEl = team?.seed !== undefined ? (
-      <Text style={[styles.seed, { color: theme.textTertiary }]}>{team.seed}</Text>
-    ) : null;
-
     const nameEl = (
       <Text
         style={[
           styles.teamName,
           { color: team ? theme.text : theme.textTertiary },
-          isWinner && !isPredictionMode && { fontWeight: FONT_WEIGHT.bold },
+          isWinner && !isPredictionMode && { fontWeight: FONT_WEIGHT.bold, color: COLORS.success },
           isPicked && { color: primaryColor, fontWeight: FONT_WEIGHT.semibold },
+          !team && { fontStyle: 'italic' },
         ]}
         numberOfLines={1}
       >
@@ -86,19 +89,15 @@ export function BracketMatch({
     );
 
     const scoreEl = isFinal && score !== undefined ? (
-      <Text
-        style={[
-          styles.score,
-          { color: isWinner ? theme.text : theme.textSecondary },
-          isWinner && { fontWeight: FONT_WEIGHT.bold },
-        ]}
-      >
+      <Text style={[styles.score, { color: isWinner ? theme.text : theme.textTertiary }, isWinner && { fontWeight: FONT_WEIGHT.bold }]}>
         {score}
       </Text>
     ) : null;
 
-    const pickDotEl = isPredictionMode && isPicked ? (
-      <Text style={[styles.pickDot, { color: primaryColor }]}>●</Text>
+    const winEl = isWinner && !isPredictionMode ? (
+      <Text style={styles.winCheck}>✓</Text>
+    ) : isPredictionMode && isPicked ? (
+      <View style={[styles.pickDot, { backgroundColor: primaryColor }]} />
     ) : null;
 
     return (
@@ -110,7 +109,7 @@ export function BracketMatch({
       >
         {isRightSide ? (
           <>
-            {pickDotEl}
+            {winEl}
             {scoreEl}
             {nameEl}
             {seedEl}
@@ -122,7 +121,7 @@ export function BracketMatch({
             {seedEl}
             {nameEl}
             {scoreEl}
-            {pickDotEl}
+            {winEl}
           </>
         )}
       </TouchableOpacity>
@@ -131,7 +130,7 @@ export function BracketMatch({
 
   if (isTbd) {
     return (
-      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]} {...{ dataSet: { bracketmatch: '' } }}>
         <View style={[styles.tbdRow, { borderBottomColor: theme.border }]}>
           <Text style={[styles.tbdText, { color: theme.textTertiary }]}>TBD</Text>
         </View>
@@ -146,20 +145,13 @@ export function BracketMatch({
   const awayWon = isFinal && match.winnerId === match.awayTeam?.id;
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <TeamRow
-        team={match.homeTeam}
-        score={match.homeScore}
-        isWinner={homeWon}
-        isPicked={selectedTeamId === match.homeTeam?.id}
-      />
+    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]} {...{ dataSet: { bracketmatch: '' } }}>
+      {match.status === 'live' && (
+        <View style={[styles.liveBar, { backgroundColor: COLORS.live }]} />
+      )}
+      <TeamRow team={match.homeTeam} score={match.homeScore} isWinner={homeWon} isPicked={selectedTeamId === match.homeTeam?.id} />
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
-      <TeamRow
-        team={match.awayTeam}
-        score={match.awayScore}
-        isWinner={awayWon}
-        isPicked={selectedTeamId === match.awayTeam?.id}
-      />
+      <TeamRow team={match.awayTeam} score={match.awayScore} isWinner={awayWon} isPicked={selectedTeamId === match.awayTeam?.id} />
     </View>
   );
 }
@@ -170,64 +162,69 @@ const styles = StyleSheet.create({
   card: {
     width: MATCH_WIDTH,
     borderWidth: 1,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     overflow: 'hidden',
+  },
+  liveBar: {
+    height: 2,
+    width: '100%',
   },
   teamRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 40,
+    height: 44,
     paddingHorizontal: SPACING.sm,
     gap: 4,
   },
-  logoBox: {
-    width: 22,
-    height: 22,
-  },
-  logo: {
-    width: 22,
-    height: 22,
-  },
-  logoPlaceholder: {
-    width: 22,
-    height: 22,
-    borderRadius: 4,
+  seedBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  abbr: {
-    fontSize: 7,
+  seedText: {
+    fontSize: 9,
     fontWeight: FONT_WEIGHT.bold,
   },
-  seed: {
-    fontSize: 10,
-    width: 14,
-    textAlign: 'center',
+  logoBox: { width: 32, height: 32 },
+  logo: { width: 32, height: 32 },
+  logoPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  abbr: { fontSize: 7, fontWeight: FONT_WEIGHT.bold },
   teamName: {
     flex: 1,
     fontSize: FONT_SIZE.sm,
   },
   score: {
     fontSize: FONT_SIZE.sm,
-    minWidth: 20,
+    minWidth: 22,
     textAlign: 'right',
+    fontWeight: FONT_WEIGHT.semibold,
   },
   pickDot: {
-    fontSize: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginLeft: 2,
   },
-  divider: {
-    height: StyleSheet.hairlineWidth,
+  winCheck: {
+    fontSize: 11,
+    color: COLORS.success,
+    marginLeft: 2,
+    fontWeight: FONT_WEIGHT.bold,
   },
+  divider: { height: StyleSheet.hairlineWidth },
   tbdRow: {
-    height: 40,
+    height: 44,
     justifyContent: 'center',
     paddingHorizontal: SPACING.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  tbdText: {
-    fontSize: FONT_SIZE.sm,
-    fontStyle: 'italic',
-  },
+  tbdText: { fontSize: FONT_SIZE.sm, fontStyle: 'italic' },
 });

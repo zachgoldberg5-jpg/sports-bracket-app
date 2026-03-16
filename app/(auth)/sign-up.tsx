@@ -8,7 +8,6 @@ import {
   ScrollView,
   useColorScheme,
   ActivityIndicator,
-  Alert,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,31 +25,36 @@ export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const signUpWithEmail = useAuthStore((s) => s.signUpWithEmail);
 
   async function handleSignUp() {
-    if (!displayName.trim() || !email.trim() || !password) {
-      Alert.alert('Missing fields', 'Please fill in all fields.');
+    setErrorMsg('');
+    setSuccessMsg('');
+    if (!email.trim()) {
+      setErrorMsg('Please enter your email address.');
+      return;
+    }
+    if (!password) {
+      setErrorMsg('Please enter a password.');
       return;
     }
     if (password.length < 8) {
-      Alert.alert('Weak password', 'Password must be at least 8 characters.');
+      setErrorMsg('Password must be at least 8 characters.');
       return;
     }
+    // Display name is optional — default to the part before @
+    const name = displayName.trim() || email.trim().split('@')[0];
     setLoading(true);
-    const error = await signUpWithEmail(email.trim().toLowerCase(), password, displayName.trim());
+    const error = await signUpWithEmail(email.trim().toLowerCase(), password, name);
     setLoading(false);
     if (error) {
-      Alert.alert('Sign up failed', error);
+      setErrorMsg(error);
     } else if (!supabaseConfigured) {
-      // Demo mode — account created locally, go straight to app
       router.replace('/(tabs)');
     } else {
-      Alert.alert(
-        'Verify your email',
-        'We sent you a confirmation email. Click the link to activate your account.',
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/sign-in') }]
-      );
+      router.replace('/(auth)/sign-in?registered=1');
     }
   }
 
@@ -69,14 +73,14 @@ export default function SignUpScreen() {
       });
 
       if (error) {
-        Alert.alert('Apple Sign In failed', error.message);
+        setErrorMsg('Apple Sign In failed: ' + error.message);
         return;
       }
 
       router.replace('/(tabs)');
     } catch (err: unknown) {
       if ((err as { code?: string }).code !== 'ERR_CANCELED') {
-        Alert.alert('Apple Sign In failed', 'An unexpected error occurred.');
+        setErrorMsg('Apple Sign In failed. Please try again.');
       }
     }
   }
@@ -136,6 +140,9 @@ export default function SignUpScreen() {
             </Text>
             .
           </Text>
+
+          {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+          {successMsg ? <Text style={styles.successText}>{successMsg}</Text> : null}
 
           <TouchableOpacity
             style={[styles.primaryButton, loading && styles.disabled]}
@@ -201,6 +208,8 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.base,
   },
   terms: { fontSize: FONT_SIZE.xs, lineHeight: 18, marginTop: SPACING.xs },
+  errorText: { fontSize: FONT_SIZE.sm, color: COLORS.error ?? '#EF4444', marginTop: SPACING.xs },
+  successText: { fontSize: FONT_SIZE.sm, color: '#22C55E', marginTop: SPACING.xs, lineHeight: 20 },
   primaryButton: {
     height: 50,
     backgroundColor: COLORS.primary,

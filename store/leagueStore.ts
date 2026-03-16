@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { League, Bracket, ConferenceStandings, LeagueId, LeagueStatus } from '../types';
 import { LEAGUE_CONFIGS, LEAGUE_ORDER, getDisplaySeason } from '../constants/leagues';
 import { getStandings, getBracket, getLeagueStatus, getMockLeagueData } from '../lib/sportsApi';
+import { invalidateCache } from '../lib/cache';
 
 interface LeagueState {
   leagues: League[];
@@ -41,6 +42,8 @@ export const useLeagueStore = create<LeagueState>((set, get) => ({
   loadLeagues: async () => {
     set({ loadingLeagues: true });
     try {
+      // Always bust status cache so Supabase values are fresh
+      await invalidateCache('status_');
       // Fetch status for all leagues in parallel
       const statusResults = await Promise.allSettled(
         LEAGUE_ORDER.map((id) => getLeagueStatus(id))

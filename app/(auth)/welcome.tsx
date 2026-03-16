@@ -22,7 +22,8 @@ export default function WelcomeScreen() {
       {/* Hero */}
       <View style={styles.hero}>
         <Text style={styles.emoji}>🏆</Text>
-        <Text style={styles.title}>Sports Bracket</Text>
+        <Text style={styles.title}>Gold Picks</Text>
+        <Text style={styles.appSub}>Sports Brackets</Text>
         <Text style={styles.subtitle}>
           Predict playoff brackets for all major sports leagues.{'\n'}
           Compete with friends. Track your wins.
@@ -106,8 +107,17 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE['4xl'],
     fontWeight: FONT_WEIGHT.extrabold,
     color: '#FFFFFF',
-    marginBottom: SPACING.sm,
+    marginBottom: 4,
     textAlign: 'center',
+  },
+  appSub: {
+    fontSize: FONT_SIZE.base,
+    fontWeight: FONT_WEIGHT.semibold,
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: SPACING.base,
   },
   subtitle: {
     fontSize: FONT_SIZE.base,

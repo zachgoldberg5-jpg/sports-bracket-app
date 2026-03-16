@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions, useColorScheme } from 'react-native';
+import React, { useRef, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, Dimensions, useColorScheme, TouchableOpacity, Platform } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -248,12 +248,152 @@ export function BracketViewer({
     : 1;
 
   // ── Hooks (never conditional) ─────────────────────────────────────────────
+  const containerRef = useRef<View>(null);
+  const suppressNextClick = useRef(false);
   const scale = useSharedValue(fitScale);
   const savedScale = useSharedValue(fitScale);
   const offsetX = useSharedValue(0);
   const offsetY = useSharedValue(0);
   const savedOffsetX = useSharedValue(0);
   const savedOffsetY = useSharedValue(0);
+
+  // Web: scroll-wheel zoom + click-to-zoom
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const el = containerRef.current as unknown as HTMLElement | null;
+    if (!el) return;
+
+    // ── Scroll wheel zoom ──────────────────────────────────────────────────
+    const onWheel = (e: Event) => {
+      const we = e as WheelEvent;
+      we.preventDefault();
+      const factor = we.deltaY < 0 ? 1.12 : 0.89;
+      const next = Math.min(Math.max(scale.value * factor, 0.1), 3.5);
+      scale.value = next;
+      savedScale.value = next;
+    };
+
+    // ── Click-to-zoom ─────────────────────────────────────────────────────
+    // Track mouse-down so we can ignore drags
+    let downX = 0;
+    let downY = 0;
+    const onMouseDown = (e: Event) => {
+      const me = e as MouseEvent;
+      downX = me.clientX;
+      downY = me.clientY;
+    };
+
+    const onClick = (e: Event) => {
+      const me = e as MouseEvent;
+
+      // Ignore if the pointer moved (drag), use 6px threshold
+      if (Math.abs(me.clientX - downX) > 6 || Math.abs(me.clientY - downY) > 6) return;
+
+      // Ignore clicks inside a BracketMatch card (data-bracketmatch attribute)
+      const target = me.target as HTMLElement;
+      if (target.closest('[data-bracketmatch]') || target.tagName === 'BUTTON') return;
+
+      const rect = el.getBoundingClientRect();
+      // Click offset from container center
+      const cx = me.clientX - rect.left - rect.width / 2;
+      const cy = me.clientY - rect.top - rect.height / 2;
+
+      const currentScale = scale.value;
+
+      // 3-level zoom cycle: fit → 2.5× → 4.5× → fit
+      let targetScale: number | null = null;
+      if (currentScale < fitScale * 1.5) {
+        targetScale = fitScale * 2.5;
+      } else if (currentScale < fitScale * 3.5) {
+        targetScale = fitScale * 4.5;
+      }
+
+      if (targetScale === null) {
+        // Reset to fit
+        scale.value = withTiming(fitScale, { duration: 250 });
+        savedScale.value = fitScale;
+        offsetX.value = withTiming(0, { duration: 250 });
+        offsetY.value = withTiming(0, { duration: 250 });
+        savedOffsetX.value = 0;
+        savedOffsetY.value = 0;
+      } else {
+        const ratio = targetScale / currentScale;
+        const newTx = cx - (cx - offsetX.value) * ratio;
+        const newTy = cy - (cy - offsetY.value) * ratio;
+        scale.value = withTiming(targetScale, { duration: 250 });
+        savedScale.value = targetScale;
+        offsetX.value = withTiming(newTx, { duration: 250 });
+        offsetY.value = withTiming(newTy, { duration: 250 });
+        savedOffsetX.value = newTx;
+        savedOffsetY.value = newTy;
+      }
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('mousedown', onMouseDown);
+    el.addEventListener('click', onClick);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('mousedown', onMouseDown);
+      el.removeEventListener('click', onClick);
+    };
+  }, [fitScale]);
+
+  const PAN_STEP = 180;
+
+  const panLeft = useCallback(() => {
+    savedOffsetX.value += PAN_STEP;
+    offsetX.value = withTiming(savedOffsetX.value, { duration: 160 });
+  }, []);
+
+  const panRight = useCallback(() => {
+    savedOffsetX.value -= PAN_STEP;
+    offsetX.value = withTiming(savedOffsetX.value, { duration: 160 });
+  }, []);
+
+  const panUp = useCallback(() => {
+    savedOffsetY.value += PAN_STEP;
+    offsetY.value = withTiming(savedOffsetY.value, { duration: 160 });
+  }, []);
+
+  const panDown = useCallback(() => {
+    savedOffsetY.value -= PAN_STEP;
+    offsetY.value = withTiming(savedOffsetY.value, { duration: 160 });
+  }, []);
+
+  // Keyboard arrow key panning (web only)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      const step = 180;
+      switch (e.key) {
+        case 'ArrowLeft':
+          e.preventDefault();
+          savedOffsetX.value += step;
+          offsetX.value = withTiming(savedOffsetX.value, { duration: 160 });
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          savedOffsetX.value -= step;
+          offsetX.value = withTiming(savedOffsetX.value, { duration: 160 });
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          savedOffsetY.value += step;
+          offsetY.value = withTiming(savedOffsetY.value, { duration: 160 });
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          savedOffsetY.value -= step;
+          offsetY.value = withTiming(savedOffsetY.value, { duration: 160 });
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // Pinch is Simultaneous with everything so it's never blocked by double-tap delay
   const pinch = Gesture.Pinch()
@@ -278,10 +418,10 @@ export function BracketViewer({
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd(() => {
-      scale.value = withTiming(fitScale);
+      scale.value = withTiming(fitScale, { duration: 200 });
       savedScale.value = fitScale;
-      offsetX.value = withTiming(0);
-      offsetY.value = withTiming(0);
+      offsetX.value = withTiming(0, { duration: 200 });
+      offsetY.value = withTiming(0, { duration: 200 });
       savedOffsetX.value = 0;
       savedOffsetY.value = 0;
     });
@@ -299,6 +439,12 @@ export function BracketViewer({
       { scale: scale.value },
     ],
   }));
+
+  // Wrap onPickTeam so a team press suppresses the next zoom click
+  const handlePickTeam = useCallback((matchId: string, teamId: string) => {
+    suppressNextClick.current = true;
+    onPickTeam?.(matchId, teamId);
+  }, [onPickTeam]);
 
   // Early exit after all hooks
   if (!hasRounds || !finalRound) return null;
@@ -323,7 +469,7 @@ export function BracketViewer({
 
   return (
     <GestureDetector gesture={all}>
-      <View style={styles.container}>
+      <View style={styles.container} ref={containerRef}>
         <Animated.View
           style={[
             styles.canvas,
@@ -368,7 +514,7 @@ export function BracketViewer({
                 >
                   <BracketMatch
                     match={match}
-                    onPickTeam={onPickTeam}
+                    onPickTeam={handlePickTeam}
                     selectedTeamId={predictions[match.id]}
                     isLocked={isLocked}
                     primaryColor={primaryColor}
@@ -389,7 +535,7 @@ export function BracketViewer({
                 >
                   <BracketMatch
                     match={match}
-                    onPickTeam={onPickTeam}
+                    onPickTeam={handlePickTeam}
                     selectedTeamId={predictions[match.id]}
                     isLocked={isLocked}
                     primaryColor={primaryColor}
@@ -404,7 +550,7 @@ export function BracketViewer({
           <View style={{ position: 'absolute', left: finalX, top: finalY }}>
             <BracketMatch
               match={finalRound.matches[0]}
-              onPickTeam={onPickTeam}
+              onPickTeam={handlePickTeam}
               selectedTeamId={predictions[finalRound.matches[0]?.id ?? '']}
               isLocked={isLocked}
               primaryColor={primaryColor}
@@ -431,6 +577,29 @@ export function BracketViewer({
             </View>
           )}
         </Animated.View>
+
+        {/* ── D-pad navigation ──────────────────────────────── */}
+        <View style={styles.dpad}>
+          <View style={styles.dpadRow}>
+            <TouchableOpacity style={styles.dpadBtn} onPress={panUp} activeOpacity={0.7}>
+              <Text style={styles.dpadBtnText}>▲</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.dpadRow}>
+            <TouchableOpacity style={styles.dpadBtn} onPress={panLeft} activeOpacity={0.7}>
+              <Text style={styles.dpadBtnText}>◀</Text>
+            </TouchableOpacity>
+            <View style={styles.dpadCenter} />
+            <TouchableOpacity style={styles.dpadBtn} onPress={panRight} activeOpacity={0.7}>
+              <Text style={styles.dpadBtnText}>▶</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.dpadRow}>
+            <TouchableOpacity style={styles.dpadBtn} onPress={panDown} activeOpacity={0.7}>
+              <Text style={styles.dpadBtnText}>▼</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </GestureDetector>
   );
@@ -454,5 +623,35 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     textAlign: 'center',
+  },
+  dpad: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    gap: 2,
+  },
+  dpadRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  dpadBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(30,30,40,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dpadBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    lineHeight: 15,
+  },
+  dpadCenter: {
+    width: 36,
+    height: 36,
   },
 });

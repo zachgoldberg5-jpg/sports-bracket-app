@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { getBracket } from '../lib/sportsApi';
 import { calculateScore, calculateRankings } from '../lib/scoring';
 import { DEFAULT_SCORING_RULES } from '../constants/scoring';
 import type {
@@ -19,6 +20,7 @@ interface GroupState {
   myPrediction: UserPrediction | null;
   loading: boolean;
   savingPrediction: boolean;
+  lastError: string | null;
 
   loadGroups: (userId: string) => Promise<void>;
   loadGroup: (groupId: string) => Promise<void>;
@@ -50,6 +52,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   myPrediction: null,
   loading: false,
   savingPrediction: false,
+  lastError: null,
 
   loadGroups: async (userId) => {
     set({ loading: true });
@@ -158,7 +161,11 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       .select()
       .single();
 
-    if (error || !data) return null;
+    if (error || !data) {
+      set({ lastError: error?.message ?? 'Unknown error' });
+      return null;
+    }
+    set({ lastError: null });
 
     // Auto-join creator
     await supabase.from('group_members').insert({
@@ -220,24 +227,45 @@ export const useGroupStore = create<GroupState>((set, get) => ({
 
     const userIds = memberRows.map((m) => m.user_id);
 
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('id', userIds);
+    const [profilesRes, predictionsRes] = await Promise.all([
+      supabase.from('profiles').select('*').in('id', userIds),
+      supabase
+        .from('user_predictions')
+        .select('user_id, score, correct_picks, predictions')
+        .eq('group_id', groupId),
+    ]);
 
-    const { data: predictions } = await supabase
-      .from('user_predictions')
-      .select('user_id, score, correct_picks, predictions')
-      .eq('group_id', groupId);
+    const predMap = new Map(predictionsRes.data?.map((p) => [p.user_id, p]) ?? []);
 
-    const predMap = new Map(predictions?.map((p) => [p.user_id, p]) ?? []);
+    const { currentGroup } = get();
 
-    const members: GroupMember[] = (profiles ?? []).map((p, idx) => {
+    // Try to recalculate live scores against current bracket results
+    let liveBracket: Awaited<ReturnType<typeof getBracket>> | null = null;
+    if (currentGroup?.leagueId) {
+      try {
+        liveBracket = await getBracket(currentGroup.leagueId);
+      } catch {
+        // use stored scores as fallback
+      }
+    }
+    const rules = currentGroup?.scoringRules ?? DEFAULT_SCORING_RULES;
+
+    const members: GroupMember[] = (profilesRes.data ?? []).map((p, idx) => {
       const pred = predMap.get(p.id);
       const predParsed: PredictionMap =
         typeof pred?.predictions === 'string'
           ? JSON.parse(pred.predictions)
           : pred?.predictions ?? {};
+
+      let score = pred?.score ?? 0;
+      let correctPicks = pred?.correct_picks ?? 0;
+
+      if (liveBracket && Object.keys(predParsed).length > 0) {
+        const live = calculateScore(predParsed, liveBracket, rules);
+        score = live.score;
+        correctPicks = live.correctPicks;
+      }
+
       return {
         userId: p.id,
         profile: {
@@ -250,9 +278,9 @@ export const useGroupStore = create<GroupState>((set, get) => ({
           totalPredictions: p.total_predictions,
           createdAt: p.created_at,
         },
-        score: pred?.score ?? 0,
-        rank: idx + 1, // will be recalculated
-        correctPicks: pred?.correct_picks ?? 0,
+        score,
+        rank: idx + 1,
+        correctPicks,
         totalPicks: Object.keys(predParsed).length,
       };
     });

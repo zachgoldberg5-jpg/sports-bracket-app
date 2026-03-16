@@ -1,22 +1,47 @@
 import type { ScoringRules } from '../types';
 
 export const DEFAULT_SCORING_RULES: ScoringRules = {
-  // Points double each round: Round 1=1, R2=2, R3=4, R4=8, Semis=16, Final=32
   pointsPerRound: [1, 2, 4, 8, 16, 32],
-  upsetBonus: 1, // extra point for correctly picking a higher seed to win
+  upsetBonus: 1,
   perfectBracketBonus: 100,
 };
 
-// March Madness has more rounds
+// ESPN standard March Madness scoring
+// Round of 64: 10 | Round of 32: 20 | Sweet 16: 40 | Elite 8: 80 | Final Four: 160 | Championship: 320
 export const NCAA_SCORING_RULES: ScoringRules = {
-  pointsPerRound: [1, 2, 4, 8, 16, 32],
-  upsetBonus: 1,
-  perfectBracketBonus: 500,
+  pointsPerRound: [10, 20, 40, 80, 160, 320],
+  upsetBonus: 0,
+  perfectBracketBonus: 1_000_000,
 };
 
-// FIFA World Cup scoring (group stage + knockouts)
+// WBC — 3 knockout rounds
+export const WBC_SCORING_RULES: ScoringRules = {
+  pointsPerRound: [5, 10, 20],
+  upsetBonus: 2,
+  perfectBracketBonus: 200,
+};
+
 export const FIFA_WC_SCORING_RULES: ScoringRules = {
   pointsPerRound: [1, 2, 4, 8, 16, 32],
   upsetBonus: 2,
   perfectBracketBonus: 200,
 };
+
+export function getScoringRulesForLeague(leagueId: string): ScoringRules {
+  switch (leagueId) {
+    case 'ncaa_mm': return NCAA_SCORING_RULES;
+    case 'wbc':     return WBC_SCORING_RULES;
+    case 'fifa_wc': return FIFA_WC_SCORING_RULES;
+    default:        return DEFAULT_SCORING_RULES;
+  }
+}
+
+export const NCAA_ROUND_NAMES = [
+  'First Four',
+  'Round of 64',
+  'Round of 32',
+  'Sweet 16',
+  'Elite Eight',
+  'Final Four',
+  'Championship',
+];

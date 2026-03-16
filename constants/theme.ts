@@ -16,20 +16,20 @@ export const COLORS = {
   completed: '#6B7280',    // Gray
   off_season: '#374151',   // Dark gray
 
-  // Light theme
+  // Light theme (forced dark — app uses dark mode only)
   light: {
-    background: '#FFFFFF',
-    surface: '#F9FAFB',
-    surfaceAlt: '#F3F4F6',
-    border: '#E5E7EB',
-    text: '#111827',
-    textSecondary: '#6B7280',
-    textTertiary: '#9CA3AF',
-    tabBar: '#FFFFFF',
-    tabBarBorder: '#E5E7EB',
-    card: '#FFFFFF',
-    skeleton: '#E5E7EB',
-    skeletonHighlight: '#F9FAFB',
+    background: '#0D1117',
+    surface: '#161B22',
+    surfaceAlt: '#21262D',
+    border: '#30363D',
+    text: '#F0F6FC',
+    textSecondary: '#8B949E',
+    textTertiary: '#6E7681',
+    tabBar: '#161B22',
+    tabBarBorder: '#30363D',
+    card: '#161B22',
+    skeleton: '#21262D',
+    skeletonHighlight: '#30363D',
   },
 
   // Dark theme
