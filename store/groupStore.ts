@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { getBracket } from '../lib/sportsApi';
 import { calculateScore, calculateRankings } from '../lib/scoring';
-import { DEFAULT_SCORING_RULES } from '../constants/scoring';
+import { DEFAULT_SCORING_RULES, getScoringRulesForLeague } from '../constants/scoring';
 import type {
   Group,
   GroupMember,
@@ -33,6 +33,7 @@ interface GroupState {
   ) => Promise<Group | null>;
   joinGroup: (inviteCode: string, userId: string) => Promise<Group | null>;
   leaveGroup: (groupId: string, userId: string) => Promise<void>;
+  deleteGroup: (groupId: string) => Promise<boolean>;
   loadMembers: (groupId: string) => Promise<void>;
   loadMyPrediction: (groupId: string, bracketId: string, userId: string) => Promise<void>;
   savePrediction: (
@@ -43,6 +44,7 @@ interface GroupState {
     bracket: Bracket
   ) => Promise<void>;
   lockPrediction: (predictionId: string) => Promise<void>;
+  unlockPrediction: (predictionId: string) => Promise<void>;
 }
 
 export const useGroupStore = create<GroupState>((set, get) => ({
@@ -157,6 +159,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         bracket_id: bracketId,
         created_by: userId,
         pick_deadline: pickDeadline.toISOString(),
+        scoring_rules: getScoringRulesForLeague(leagueId),
       })
       .select()
       .single();
@@ -217,6 +220,19 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     set((s) => ({ groups: s.groups.filter((g) => g.id !== groupId) }));
   },
 
+  deleteGroup: async (groupId) => {
+    const { error } = await supabase.from('groups').delete().eq('id', groupId);
+    if (error) {
+      set({ lastError: error.message });
+      return false;
+    }
+    set((s) => ({
+      groups: s.groups.filter((g) => g.id !== groupId),
+      currentGroup: s.currentGroup?.id === groupId ? null : s.currentGroup,
+    }));
+    return true;
+  },
+
   loadMembers: async (groupId) => {
     const { data: memberRows } = await supabase
       .from('group_members')
@@ -250,6 +266,14 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     }
     const rules = currentGroup?.scoringRules ?? DEFAULT_SCORING_RULES;
 
+    // Find the championship match (last round, position 0) to show champion pick logo
+    const champMatch = liveBracket
+      ? (() => {
+          const lastRound = liveBracket.rounds[liveBracket.rounds.length - 1];
+          return lastRound?.matches.find((m) => m.position === 0) ?? null;
+        })()
+      : null;
+
     const members: GroupMember[] = (profilesRes.data ?? []).map((p, idx) => {
       const pred = predMap.get(p.id);
       const predParsed: PredictionMap =
@@ -266,8 +290,25 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         correctPicks = live.correctPicks;
       }
 
+      // Resolve picked champion team for logo display
+      let pickedChampionLogo: string | undefined;
+      let pickedChampionName: string | undefined;
+      if (champMatch) {
+        const pickedId = predParsed[champMatch.id];
+        if (pickedId) {
+          const team =
+            champMatch.homeTeam?.id === pickedId ? champMatch.homeTeam
+            : champMatch.awayTeam?.id === pickedId ? champMatch.awayTeam
+            : undefined;
+          pickedChampionLogo = team?.logoUrl;
+          pickedChampionName = team?.name;
+        }
+      }
+
       return {
         userId: p.id,
+        pickedChampionLogo,
+        pickedChampionName,
         profile: {
           id: p.id,
           username: p.username,
@@ -372,6 +413,19 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     set((s) => ({
       myPrediction: s.myPrediction
         ? { ...s.myPrediction, locked: true }
+        : null,
+    }));
+  },
+
+  unlockPrediction: async (predictionId) => {
+    await supabase
+      .from('user_predictions')
+      .update({ locked: false })
+      .eq('id', predictionId);
+
+    set((s) => ({
+      myPrediction: s.myPrediction
+        ? { ...s.myPrediction, locked: false }
         : null,
     }));
   },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,21 +16,79 @@ import { useLeague } from '../../../../hooks/useLeague';
 import { BracketViewer } from '../../../../components/bracket/BracketViewer';
 import { EmptyState } from '../../../../components/ui/EmptyState';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SPACING } from '../../../../constants/theme';
-import type { PredictionMap, LeagueId } from '../../../../types';
+import type { Bracket, PredictionMap, LeagueId, Team } from '../../../../types';
 import { isPast } from 'date-fns';
+
+/**
+ * Takes the real bracket and user's predictions, and returns a new bracket
+ * where picked winners are propagated forward into future round slots.
+ * This lets the user pick in round 2 based on their round 1 selections.
+ */
+function computePredictionBracket(bracket: Bracket, predictions: PredictionMap): Bracket {
+  if (Object.keys(predictions).length === 0) return bracket;
+
+  // matchId → the team object the user picked as winner
+  const pickedTeams: Record<string, Team | undefined> = {};
+
+  const computedRounds = bracket.rounds.map((round, roundIdx) => {
+    const prevRound = roundIdx > 0 ? bracket.rounds[roundIdx - 1] : null;
+
+    const matches = round.matches.map((match) => {
+      let { homeTeam, awayTeam } = match;
+
+      // Fill TBD slots using picks from the previous round
+      if (prevRound) {
+        const homeFeederIdx = match.position * 2;
+        const awayFeederIdx = match.position * 2 + 1;
+        const homeFeeder = prevRound.matches.find((m) => m.position === homeFeederIdx);
+        const awayFeeder = prevRound.matches.find((m) => m.position === awayFeederIdx);
+
+        if (!homeTeam && homeFeeder && pickedTeams[homeFeeder.id]) {
+          homeTeam = pickedTeams[homeFeeder.id];
+        }
+        if (!awayTeam && awayFeeder && pickedTeams[awayFeeder.id]) {
+          awayTeam = pickedTeams[awayFeeder.id];
+        }
+      }
+
+      const updatedMatch = { ...match, homeTeam, awayTeam };
+
+      // Record this match's picked winner so it can feed the next round
+      const pickedId = predictions[match.id];
+      if (pickedId) {
+        const winner =
+          homeTeam?.id === pickedId ? homeTeam
+          : awayTeam?.id === pickedId ? awayTeam
+          : undefined;
+        if (winner) pickedTeams[match.id] = winner;
+      }
+
+      return updatedMatch;
+    });
+
+    return { ...round, matches };
+  });
+
+  return { ...bracket, rounds: computedRounds };
+}
 
 export default function PicksScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
 
-  const { group, myPrediction, savePrediction, lockPrediction, savingPrediction } = useGroup(groupId);
+  const { group, myPrediction, savePrediction, lockPrediction, unlockPrediction, savingPrediction } = useGroup(groupId);
   const leagueId = group?.leagueId;
   const { league, bracket, loadingBracket } = useLeague((leagueId ?? 'nba') as LeagueId);
 
   const [predictions, setPredictions] = useState<PredictionMap>({});
   const isLocked = myPrediction?.locked ?? false;
   const deadlinePast = group ? isPast(new Date(group.pickDeadline)) : false;
+
+  const displayBracket = useMemo(
+    () => bracket ? computePredictionBracket(bracket, predictions) : null,
+    [bracket, predictions]
+  );
 
   useEffect(() => {
     if (myPrediction?.predictions) {
@@ -44,8 +102,8 @@ export default function PicksScreen() {
   }
 
   async function handleSave() {
-    if (!bracket || !group) return;
-    await savePrediction(predictions, bracket);
+    if (!displayBracket || !group) return;
+    await savePrediction(predictions, displayBracket);
     Alert.alert('Saved!', 'Your picks have been saved. You can update them until the deadline.');
   }
 
@@ -59,8 +117,8 @@ export default function PicksScreen() {
           text: 'Lock Picks',
           style: 'destructive',
           onPress: async () => {
-            if (!bracket || !group) return;
-            await savePrediction(predictions, bracket);
+            if (!displayBracket || !group) return;
+            await savePrediction(predictions, displayBracket);
             await lockPrediction();
             Alert.alert('Picks Locked', 'Your bracket is locked in. Good luck!');
           },
@@ -94,7 +152,7 @@ export default function PicksScreen() {
     );
   }
 
-  const totalMatches = bracket.rounds.flatMap((r) => r.matches).filter((m) => m.homeTeam && m.awayTeam).length;
+  const totalMatches = displayBracket!.rounds.flatMap((r) => r.matches).filter((m) => m.homeTeam && m.awayTeam).length;
   const pickedCount = Object.keys(predictions).length;
 
   return (
@@ -140,7 +198,7 @@ export default function PicksScreen() {
       {/* Bracket */}
       <View style={styles.bracketArea}>
         <BracketViewer
-          bracket={bracket}
+          bracket={displayBracket!}
           predictions={predictions}
           onPickTeam={!isLocked && !deadlinePast ? handlePickTeam : undefined}
           isLocked={isLocked || deadlinePast}
@@ -148,7 +206,7 @@ export default function PicksScreen() {
         />
       </View>
 
-      {/* Action buttons */}
+      {/* Action buttons — editing */}
       {!isLocked && !deadlinePast && (
         <View style={[styles.actions, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
           <TouchableOpacity
@@ -171,6 +229,19 @@ export default function PicksScreen() {
             activeOpacity={0.85}
           >
             <Text style={styles.lockButtonText}>Lock Picks 🔒</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Locked but deadline not past — allow editing */}
+      {isLocked && !deadlinePast && (
+        <View style={[styles.actions, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
+          <TouchableOpacity
+            style={[styles.editButton]}
+            onPress={unlockPrediction}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.editButtonText}>✏️ Edit Picks</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -222,4 +293,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   lockButtonText: { color: '#FFF', fontSize: FONT_SIZE.base, fontWeight: FONT_WEIGHT.bold },
+  editButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F59E0B',
+  },
+  editButtonText: { color: '#FFF', fontSize: FONT_SIZE.base, fontWeight: FONT_WEIGHT.bold },
 });

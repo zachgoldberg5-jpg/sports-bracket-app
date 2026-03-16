@@ -222,25 +222,57 @@ export default function CreateGroupScreen() {
         {/* Pick deadline */}
         <Text style={[styles.label, { color: theme.textSecondary }]}>Pick Deadline</Text>
         {Platform.OS === 'web' ? (
-          <View style={[styles.dateButton, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
+          <View style={styles.dateRow}>
             {/* @ts-ignore – web-only input */}
             <input
-              type="datetime-local"
-              value={format(deadline, "yyyy-MM-dd'T'HH:mm")}
-              min={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+              type="date"
+              value={format(deadline, 'yyyy-MM-dd')}
+              min={format(new Date(), 'yyyy-MM-dd')}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                if (e.target.value) setDeadline(new Date(e.target.value));
+                if (e.target.value) {
+                  const [y, m, d] = e.target.value.split('-').map(Number);
+                  const next = new Date(deadline);
+                  next.setFullYear(y, m - 1, d);
+                  setDeadline(next);
+                }
               }}
               style={{
-                background: 'transparent',
-                border: 'none',
+                flex: 1,
+                background: theme.surfaceAlt,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 12,
                 color: theme.text,
-                fontSize: 16,
-                width: '100%',
-                height: 48,
+                fontSize: 15,
+                height: 50,
+                padding: '0 12px',
                 outline: 'none',
                 cursor: 'pointer',
-                padding: '0 4px',
+                colorScheme: scheme === 'dark' ? 'dark' : 'light',
+              }}
+            />
+            {/* @ts-ignore – web-only input */}
+            <input
+              type="time"
+              value={format(deadline, 'HH:mm')}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                if (e.target.value) {
+                  const [h, min] = e.target.value.split(':').map(Number);
+                  const next = new Date(deadline);
+                  next.setHours(h, min);
+                  setDeadline(next);
+                }
+              }}
+              style={{
+                width: 130,
+                background: theme.surfaceAlt,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 12,
+                color: theme.text,
+                fontSize: 15,
+                height: 50,
+                padding: '0 12px',
+                outline: 'none',
+                cursor: 'pointer',
                 colorScheme: scheme === 'dark' ? 'dark' : 'light',
               }}
             />
@@ -335,6 +367,10 @@ const styles = StyleSheet.create({
   leagueEmoji: { fontSize: 18 },
   leagueName: { fontSize: FONT_SIZE.sm, fontWeight: FONT_WEIGHT.medium },
   leagueLive: { fontSize: 10, fontWeight: FONT_WEIGHT.bold, marginTop: 1 },
+  dateRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
   dateButton: {
     height: 50,
     borderWidth: 1,

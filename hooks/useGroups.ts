@@ -56,6 +56,11 @@ export function useGroup(groupId: string) {
         await store.lockPrediction(store.myPrediction.id);
       }
     },
+    unlockPrediction: async () => {
+      if (store.myPrediction) {
+        await store.unlockPrediction(store.myPrediction.id);
+      }
+    },
     createGroup: async (
       name: string,
       leagueId: LeagueId,

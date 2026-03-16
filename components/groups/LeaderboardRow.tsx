@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { useColorScheme } from 'react-native';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, SPACING } from '../../constants/theme';
 import { Avatar } from '../ui/Avatar';
@@ -62,6 +62,16 @@ export function LeaderboardRow({ member, isCurrentUser, showDivider = true }: Le
         </Text>
       </View>
 
+      {/* Champion pick logo */}
+      {member.pickedChampionLogo ? (
+        <Image
+          source={{ uri: member.pickedChampionLogo }}
+          style={styles.champLogo}
+          resizeMode="contain"
+          accessibilityLabel={member.pickedChampionName}
+        />
+      ) : null}
+
       {/* Score */}
       <Text style={[styles.score, { color: theme.text }]}>
         {member.score}
@@ -104,6 +114,11 @@ const styles = StyleSheet.create({
   accuracy: {
     fontSize: FONT_SIZE.xs,
     marginTop: 1,
+  },
+  champLogo: {
+    width: 28,
+    height: 28,
+    marginRight: SPACING.sm,
   },
   score: {
     fontSize: FONT_SIZE.lg,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,14 @@ import {
   RefreshControl,
   useColorScheme,
   ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { useGroup } from '../../../../hooks/useGroups';
 import { useAuthStore } from '../../../../store/authStore';
+import { useGroupStore } from '../../../../store/groupStore';
 import { LeaderboardRow } from '../../../../components/groups/LeaderboardRow';
 import { InviteCodeCard } from '../../../../components/groups/InviteCodeCard';
 import { EmptyState } from '../../../../components/ui/EmptyState';
@@ -26,6 +29,35 @@ export default function GroupDetailScreen() {
   const userId = useAuthStore((s) => s.user?.id);
 
   const { group, members, myPrediction, loading } = useGroup(groupId);
+  const deleteGroup = useGroupStore((s) => s.deleteGroup);
+  const [deleting, setDeleting] = useState(false);
+
+  const isOwner = group?.createdBy === userId;
+
+  function confirmDelete() {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Delete "${group?.name}"? This cannot be undone.`)) {
+        handleDelete();
+      }
+    } else {
+      Alert.alert(
+        'Delete Group',
+        `Delete "${group?.name}"? This cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: handleDelete },
+        ]
+      );
+    }
+  }
+
+  async function handleDelete() {
+    if (!groupId) return;
+    setDeleting(true);
+    const ok = await deleteGroup(groupId);
+    setDeleting(false);
+    if (ok) router.replace('/(tabs)/groups');
+  }
 
   if (loading && !group) {
     return (
@@ -47,16 +79,23 @@ export default function GroupDetailScreen() {
         options={{
           title: group.name,
           headerRight: () => (
-            <TouchableOpacity
-              onPress={() => router.push({
-                pathname: '/modal/invite',
-                params: { code: group.inviteCode, name: group.name },
-              })}
-            >
-              <Text style={{ color: COLORS.primary, fontSize: FONT_SIZE.sm, paddingRight: SPACING.xs }}>
-                Invite
-              </Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: SPACING.md, paddingRight: SPACING.xs }}>
+              <TouchableOpacity
+                onPress={() => router.push({
+                  pathname: '/modal/invite',
+                  params: { code: group.inviteCode, name: group.name },
+                })}
+              >
+                <Text style={{ color: COLORS.primary, fontSize: FONT_SIZE.sm }}>Invite</Text>
+              </TouchableOpacity>
+              {isOwner && (
+                <TouchableOpacity onPress={confirmDelete} disabled={deleting}>
+                  <Text style={{ color: '#EF4444', fontSize: FONT_SIZE.sm }}>
+                    {deleting ? '...' : 'Delete'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ),
         }}
       />

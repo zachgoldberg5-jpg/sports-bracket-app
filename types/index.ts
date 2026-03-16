@@ -138,6 +138,8 @@ export interface GroupMember {
   rank: number;
   correctPicks: number;
   totalPicks: number;
+  pickedChampionLogo?: string;
+  pickedChampionName?: string;
 }
 
 // Map of matchId → predicted winnerId
