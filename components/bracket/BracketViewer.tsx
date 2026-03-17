@@ -468,144 +468,149 @@ export function BracketViewer({
   const finalY = matchTopY(finalCenterY);
 
   return (
-    <GestureDetector gesture={all}>
-      <View style={styles.container} ref={containerRef}>
-        <Animated.View
-          style={[
-            styles.canvas,
-            { width: canvasWidth, height: canvasHeight },
-            animStyle,
-          ]}
-        >
-          {/* ── Round labels ─────────────────────────────────────── */}
-          {labels.map((lbl, i) => (
-            <Text
-              key={`lbl_${i}`}
-              style={[styles.roundLabel, { color: theme.textSecondary, left: lbl.centerX - 60, width: 120 }]}
-              numberOfLines={1}
-            >
-              {lbl.label}
-            </Text>
-          ))}
+    <View style={styles.wrapper}>
+      <GestureDetector gesture={all}>
+        <View style={styles.container} ref={containerRef}>
+          <Animated.View
+            style={[
+              styles.canvas,
+              { width: canvasWidth, height: canvasHeight },
+              animStyle,
+            ]}
+          >
+            {/* ── Round labels ─────────────────────────────────────── */}
+            {labels.map((lbl, i) => (
+              <Text
+                key={`lbl_${i}`}
+                style={[styles.roundLabel, { color: theme.textSecondary, left: lbl.centerX - 60, width: 120 }]}
+                numberOfLines={1}
+              >
+                {lbl.label}
+              </Text>
+            ))}
 
-          {/* ── Connector lines ───────────────────────────────────── */}
-          {connectorLines.map((line) => (
-            <View
-              key={line.key}
-              style={{
-                position: 'absolute',
-                left: line.x,
-                top: line.y,
-                width: line.w,
-                height: Math.max(line.h, 1),
-                backgroundColor: theme.border,
-              }}
-            />
-          ))}
+            {/* ── Connector lines ───────────────────────────────────── */}
+            {connectorLines.map((line) => (
+              <View
+                key={line.key}
+                style={{
+                  position: 'absolute',
+                  left: line.x,
+                  top: line.y,
+                  width: line.w,
+                  height: Math.max(line.h, 1),
+                  backgroundColor: theme.border,
+                }}
+              />
+            ))}
 
-          {/* ── Left side matches ─────────────────────────────────── */}
-          {sideRounds.map((_round, r) =>
-            leftMatchesByRound[r].map((match, m) => {
-              const cy = matchCenterY(m, leftMatchesByRound[r].length, contentHeight);
-              return (
-                <View
-                  key={match.id}
-                  style={{ position: 'absolute', left: leftColX(r), top: matchTopY(cy) }}
-                >
-                  <BracketMatch
-                    match={match}
-                    onPickTeam={handlePickTeam}
-                    selectedTeamId={predictions[match.id]}
-                    isLocked={isLocked}
-                    primaryColor={primaryColor}
-                  />
-                </View>
-              );
-            })
-          )}
+            {/* ── Left side matches ─────────────────────────────────── */}
+            {sideRounds.map((_round, r) =>
+              leftMatchesByRound[r].map((match, m) => {
+                const cy = matchCenterY(m, leftMatchesByRound[r].length, contentHeight);
+                return (
+                  <View
+                    key={match.id}
+                    style={{ position: 'absolute', left: leftColX(r), top: matchTopY(cy) }}
+                  >
+                    <BracketMatch
+                      match={match}
+                      onPickTeam={handlePickTeam}
+                      selectedTeamId={predictions[match.id]}
+                      isLocked={isLocked}
+                      primaryColor={primaryColor}
+                    />
+                  </View>
+                );
+              })
+            )}
 
-          {/* ── Right side matches ────────────────────────────────── */}
-          {sideRounds.map((_round, r) =>
-            rightMatchesByRound[r].map((match, m) => {
-              const cy = matchCenterY(m, rightMatchesByRound[r].length, contentHeight);
-              return (
-                <View
-                  key={match.id}
-                  style={{ position: 'absolute', left: rightColX(r, canvasWidth), top: matchTopY(cy) }}
-                >
-                  <BracketMatch
-                    match={match}
-                    onPickTeam={handlePickTeam}
-                    selectedTeamId={predictions[match.id]}
-                    isLocked={isLocked}
-                    primaryColor={primaryColor}
-                    isRightSide
-                  />
-                </View>
-              );
-            })
-          )}
+            {/* ── Right side matches ────────────────────────────────── */}
+            {sideRounds.map((_round, r) =>
+              rightMatchesByRound[r].map((match, m) => {
+                const cy = matchCenterY(m, rightMatchesByRound[r].length, contentHeight);
+                return (
+                  <View
+                    key={match.id}
+                    style={{ position: 'absolute', left: rightColX(r, canvasWidth), top: matchTopY(cy) }}
+                  >
+                    <BracketMatch
+                      match={match}
+                      onPickTeam={handlePickTeam}
+                      selectedTeamId={predictions[match.id]}
+                      isLocked={isLocked}
+                      primaryColor={primaryColor}
+                      isRightSide
+                    />
+                  </View>
+                );
+              })
+            )}
 
-          {/* ── Final match ───────────────────────────────────────── */}
-          <View style={{ position: 'absolute', left: finalX, top: finalY }}>
-            <BracketMatch
-              match={finalRound.matches[0]}
-              onPickTeam={handlePickTeam}
-              selectedTeamId={predictions[finalRound.matches[0]?.id ?? '']}
-              isLocked={isLocked}
-              primaryColor={primaryColor}
-            />
-          </View>
-
-          {/* ── Champion display ──────────────────────────────────── */}
-          {bracket.champion && (
-            <View
-              style={{
-                position: 'absolute',
-                left: finalCenterX - 100,
-                top: finalY + MATCH_HEIGHT + 16,
-                width: 200,
-                alignItems: 'center',
-              }}
-            >
-              <ChampionDisplay
-                champion={bracket.champion}
-                leagueName={bracket.leagueId.toUpperCase()}
-                season={bracket.season}
+            {/* ── Final match ───────────────────────────────────────── */}
+            <View style={{ position: 'absolute', left: finalX, top: finalY }}>
+              <BracketMatch
+                match={finalRound.matches[0]}
+                onPickTeam={handlePickTeam}
+                selectedTeamId={predictions[finalRound.matches[0]?.id ?? '']}
+                isLocked={isLocked}
                 primaryColor={primaryColor}
               />
             </View>
-          )}
-        </Animated.View>
 
-        {/* ── D-pad navigation ──────────────────────────────── */}
-        <View style={styles.dpad}>
-          <View style={styles.dpadRow}>
-            <TouchableOpacity style={styles.dpadBtn} onPress={panUp} activeOpacity={0.7}>
-              <Text style={styles.dpadBtnText}>▲</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.dpadRow}>
-            <TouchableOpacity style={styles.dpadBtn} onPress={panLeft} activeOpacity={0.7}>
-              <Text style={styles.dpadBtnText}>◀</Text>
-            </TouchableOpacity>
-            <View style={styles.dpadCenter} />
-            <TouchableOpacity style={styles.dpadBtn} onPress={panRight} activeOpacity={0.7}>
-              <Text style={styles.dpadBtnText}>▶</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.dpadRow}>
-            <TouchableOpacity style={styles.dpadBtn} onPress={panDown} activeOpacity={0.7}>
-              <Text style={styles.dpadBtnText}>▼</Text>
-            </TouchableOpacity>
-          </View>
+            {/* ── Champion display ──────────────────────────────────── */}
+            {bracket.champion && (
+              <View
+                style={{
+                  position: 'absolute',
+                  left: finalCenterX - 100,
+                  top: finalY + MATCH_HEIGHT + 16,
+                  width: 200,
+                  alignItems: 'center',
+                }}
+              >
+                <ChampionDisplay
+                  champion={bracket.champion}
+                  leagueName={bracket.leagueId.toUpperCase()}
+                  season={bracket.season}
+                  primaryColor={primaryColor}
+                />
+              </View>
+            )}
+          </Animated.View>
+        </View>
+      </GestureDetector>
+
+      {/* ── D-pad outside GestureDetector so mouse clicks reach TouchableOpacity ── */}
+      <View style={styles.dpad} pointerEvents="box-none">
+        <View style={styles.dpadRow}>
+          <TouchableOpacity style={styles.dpadBtn} onPress={panUp} activeOpacity={0.7}>
+            <Text style={styles.dpadBtnText}>▲</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.dpadRow}>
+          <TouchableOpacity style={styles.dpadBtn} onPress={panLeft} activeOpacity={0.7}>
+            <Text style={styles.dpadBtnText}>◀</Text>
+          </TouchableOpacity>
+          <View style={styles.dpadCenter} />
+          <TouchableOpacity style={styles.dpadBtn} onPress={panRight} activeOpacity={0.7}>
+            <Text style={styles.dpadBtnText}>▶</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.dpadRow}>
+          <TouchableOpacity style={styles.dpadBtn} onPress={panDown} activeOpacity={0.7}>
+            <Text style={styles.dpadBtnText}>▼</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    </GestureDetector>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     overflow: 'hidden',

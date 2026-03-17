@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack } from 'expo-router';
@@ -27,10 +28,18 @@ export default function GroupsScreen() {
           title: 'My Groups',
           headerRight: () => (
             <View style={styles.headerActions}>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/groups/join')}>
-                <Text style={[styles.headerAction, { color: COLORS.primary }]}>Join</Text>
+              <TouchableOpacity
+                onPress={() => router.push('/groups/join')}
+                // @ts-ignore web cursor
+                style={Platform.OS === 'web' ? { cursor: 'pointer' } : undefined}
+              >
+                <Text style={[styles.headerAction, { color: COLORS.primary }]}>Join Group</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/groups/create')}>
+              <TouchableOpacity
+                onPress={() => router.push('/groups/create')}
+                // @ts-ignore web cursor
+                style={Platform.OS === 'web' ? { cursor: 'pointer' } : undefined}
+              >
                 <Text style={[styles.headerAction, { color: COLORS.primary }]}>+ Create</Text>
               </TouchableOpacity>
             </View>

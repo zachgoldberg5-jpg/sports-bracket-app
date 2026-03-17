@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
@@ -33,9 +34,17 @@ export default function JoinGroupScreen() {
     if (codeParam) setInviteCode(codeParam.toUpperCase());
   }, [codeParam]);
 
+  function showAlert(title: string, message: string) {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  }
+
   async function handleJoin() {
     if (inviteCode.trim().length < 6) {
-      Alert.alert('Invalid code', 'Please enter a valid 8-character invite code.');
+      showAlert('Invalid code', 'Please enter a valid 8-character invite code.');
       return;
     }
     if (!user) return;
@@ -51,9 +60,9 @@ export default function JoinGroupScreen() {
     setLoading(false);
 
     if (group) {
-      router.replace(`/(tabs)/groups/${group.id}`);
+      router.replace(`/groups/${group.id}`);
     } else {
-      Alert.alert('Group not found', 'That invite code is invalid or the group no longer exists.');
+      showAlert('Group not found', 'That invite code is invalid or the group no longer exists.');
     }
   }
 

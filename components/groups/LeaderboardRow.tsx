@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useColorScheme } from 'react-native';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, SPACING } from '../../constants/theme';
 import { Avatar } from '../ui/Avatar';
@@ -9,11 +9,12 @@ interface LeaderboardRowProps {
   member: GroupMember;
   isCurrentUser?: boolean;
   showDivider?: boolean;
+  onPress?: () => void;
 }
 
 const RANK_MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
-export function LeaderboardRow({ member, isCurrentUser, showDivider = true }: LeaderboardRowProps) {
+export function LeaderboardRow({ member, isCurrentUser, showDivider = true, onPress }: LeaderboardRowProps) {
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
 
@@ -22,14 +23,14 @@ export function LeaderboardRow({ member, isCurrentUser, showDivider = true }: Le
     ? Math.round((member.correctPicks / member.totalPicks) * 100)
     : 0;
 
-  return (
-    <View
-      style={[
-        styles.row,
-        isCurrentUser && { backgroundColor: COLORS.primary + '11' },
-        showDivider && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth },
-      ]}
-    >
+  const rowStyle = [
+    styles.row,
+    isCurrentUser && { backgroundColor: COLORS.primary + '11' },
+    showDivider && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth },
+  ];
+
+  const inner = (
+    <>
       {/* Rank */}
       <View style={styles.rankWrap}>
         {medal ? (
@@ -49,37 +50,51 @@ export function LeaderboardRow({ member, isCurrentUser, showDivider = true }: Le
         style={{ marginRight: SPACING.sm }}
       />
 
-      {/* Name + accuracy */}
+      {/* Name + accuracy + champion pick */}
       <View style={styles.nameWrap}>
-        <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
-          {member.profile.displayName}
-          {isCurrentUser && (
-            <Text style={[styles.you, { color: COLORS.primary }]}> (You)</Text>
-          )}
-        </Text>
+        <View style={styles.nameRow}>
+          {member.pickedChampionLogo ? (
+            <Image
+              source={{ uri: member.pickedChampionLogo }}
+              style={styles.champLogo}
+              resizeMode="contain"
+              accessibilityLabel={member.pickedChampionName}
+            />
+          ) : null}
+          <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
+            {member.profile.displayName}
+            {isCurrentUser && (
+              <Text style={[styles.you, { color: COLORS.primary }]}> (You)</Text>
+            )}
+          </Text>
+        </View>
         <Text style={[styles.accuracy, { color: theme.textSecondary }]}>
           {member.correctPicks}/{member.totalPicks} correct · {accuracy}%
+          {onPress && !isCurrentUser && (
+            <Text style={[styles.viewBracket, { color: COLORS.primary }]}> · View Bracket</Text>
+          )}
         </Text>
       </View>
-
-      {/* Champion pick logo */}
-      {member.pickedChampionLogo ? (
-        <Image
-          source={{ uri: member.pickedChampionLogo }}
-          style={styles.champLogo}
-          resizeMode="contain"
-          accessibilityLabel={member.pickedChampionName}
-        />
-      ) : null}
 
       {/* Score */}
       <Text style={[styles.score, { color: theme.text }]}>
         {member.score}
         <Text style={[styles.pts, { color: theme.textSecondary }]}> pts</Text>
       </Text>
-    </View>
+    </>
   );
+
+  if (onPress && !isCurrentUser) {
+    return (
+      <TouchableOpacity style={rowStyle} onPress={onPress} activeOpacity={0.7}>
+        {inner}
+      </TouchableOpacity>
+    );
+  }
+
+  return <View style={rowStyle}>{inner}</View>;
 }
+
 
 const styles = StyleSheet.create({
   row: {
@@ -103,6 +118,15 @@ const styles = StyleSheet.create({
   nameWrap: {
     flex: 1,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  champLogo: {
+    width: 22,
+    height: 22,
+  },
   name: {
     fontSize: FONT_SIZE.base,
     fontWeight: FONT_WEIGHT.medium,
@@ -115,10 +139,9 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.xs,
     marginTop: 1,
   },
-  champLogo: {
-    width: 28,
-    height: 28,
-    marginRight: SPACING.sm,
+  viewBracket: {
+    fontSize: FONT_SIZE.xs,
+    fontWeight: FONT_WEIGHT.medium,
   },
   score: {
     fontSize: FONT_SIZE.lg,

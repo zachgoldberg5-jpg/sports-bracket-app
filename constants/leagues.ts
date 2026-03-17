@@ -92,6 +92,19 @@ export const LEAGUE_CONFIGS: Record<LeagueId, Omit<League, 'status' | 'season'>>
   },
 };
 
+// Tournament/league logo URLs (ESPN CDN) — falls back to emoji on error
+export const LEAGUE_LOGOS: Record<LeagueId, string> = {
+  nba:     'https://a.espncdn.com/i/teamlogos/leagues/500/nba.png',
+  nfl:     'https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png',
+  nhl:     'https://a.espncdn.com/i/teamlogos/leagues/500/nhl.png',
+  mlb:     'https://a.espncdn.com/i/teamlogos/leagues/500/mlb.png',
+  mls:     'https://a.espncdn.com/i/teamlogos/leagues/500/mls.png',
+  ncaa_mm: 'https://a.espncdn.com/i/teamlogos/leagues/500/ncaa.png',
+  ucl:     'https://a.espncdn.com/i/teamlogos/soccer/500/665.png',
+  fifa_wc: 'https://a.espncdn.com/i/teamlogos/soccer/500/FIFA.WC.png',
+  wbc:     'https://a.espncdn.com/i/teamlogos/leagues/500/wbc.png',
+};
+
 // Sport emoji for UI display
 export const LEAGUE_EMOJI: Record<LeagueId, string> = {
   nba:      '🏀',

@@ -4,88 +4,66 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
+  Modal,
   Alert,
   ActivityIndicator,
   useColorScheme,
-  ScrollView,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
-import { useGroup } from '../../../../hooks/useGroups';
 import { useLeague } from '../../../../hooks/useLeague';
+import { useAuthStore } from '../../../../store/authStore';
+import { useGroupStore } from '../../../../store/groupStore';
 import { BracketViewer } from '../../../../components/bracket/BracketViewer';
 import { EmptyState } from '../../../../components/ui/EmptyState';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SPACING } from '../../../../constants/theme';
 import type { Bracket, PredictionMap, LeagueId, Team } from '../../../../types';
-import { isPast } from 'date-fns';
 
-/**
- * Takes the real bracket and user's predictions, and returns a new bracket
- * where picked winners are propagated forward into future round slots.
- * This lets the user pick in round 2 based on their round 1 selections.
- */
 function computePredictionBracket(bracket: Bracket, predictions: PredictionMap): Bracket {
   if (Object.keys(predictions).length === 0) return bracket;
-
-  // matchId → the team object the user picked as winner
   const pickedTeams: Record<string, Team | undefined> = {};
-
   const computedRounds = bracket.rounds.map((round, roundIdx) => {
     const prevRound = roundIdx > 0 ? bracket.rounds[roundIdx - 1] : null;
-
     const matches = round.matches.map((match) => {
       let { homeTeam, awayTeam } = match;
-
-      // Fill TBD slots using picks from the previous round
       if (prevRound) {
-        const homeFeederIdx = match.position * 2;
-        const awayFeederIdx = match.position * 2 + 1;
-        const homeFeeder = prevRound.matches.find((m) => m.position === homeFeederIdx);
-        const awayFeeder = prevRound.matches.find((m) => m.position === awayFeederIdx);
-
-        if (!homeTeam && homeFeeder && pickedTeams[homeFeeder.id]) {
-          homeTeam = pickedTeams[homeFeeder.id];
-        }
-        if (!awayTeam && awayFeeder && pickedTeams[awayFeeder.id]) {
-          awayTeam = pickedTeams[awayFeeder.id];
-        }
+        const homeFeeder = prevRound.matches.find((m) => m.position === match.position * 2);
+        const awayFeeder = prevRound.matches.find((m) => m.position === match.position * 2 + 1);
+        if (!homeTeam && homeFeeder && pickedTeams[homeFeeder.id]) homeTeam = pickedTeams[homeFeeder.id];
+        if (!awayTeam && awayFeeder && pickedTeams[awayFeeder.id]) awayTeam = pickedTeams[awayFeeder.id];
       }
-
       const updatedMatch = { ...match, homeTeam, awayTeam };
-
-      // Record this match's picked winner so it can feed the next round
       const pickedId = predictions[match.id];
       if (pickedId) {
-        const winner =
-          homeTeam?.id === pickedId ? homeTeam
-          : awayTeam?.id === pickedId ? awayTeam
-          : undefined;
+        const winner = homeTeam?.id === pickedId ? homeTeam : awayTeam?.id === pickedId ? awayTeam : undefined;
         if (winner) pickedTeams[match.id] = winner;
       }
-
       return updatedMatch;
     });
-
     return { ...round, matches };
   });
-
   return { ...bracket, rounds: computedRounds };
 }
 
-export default function PicksScreen() {
-  const { groupId } = useLocalSearchParams<{ groupId: string }>();
+export default function PersonalPicksScreen() {
+  const { leagueId } = useLocalSearchParams<{ leagueId: string }>();
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
 
-  const { group, myPrediction, savePrediction, lockPrediction, savingPrediction } = useGroup(groupId);
-  const leagueId = group?.leagueId;
-  const { league, bracket, loadingBracket } = useLeague((leagueId ?? 'nba') as LeagueId);
+  const user = useAuthStore((s) => s.user);
+  const store = useGroupStore();
+  const { league, bracket, loadingBracket } = useLeague(leagueId as LeagueId);
 
   const [predictions, setPredictions] = useState<PredictionMap>({});
   const [showQuickFill, setShowQuickFill] = useState(false);
-  const isLocked = myPrediction?.locked ?? false;
-  const deadlinePast = group ? isPast(new Date(group.pickDeadline)) : false;
+  const [saving, setSaving] = useState(false);
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [bracketName, setBracketName] = useState('');
+  const isLocked = store.myPersonalPrediction?.locked ?? false;
+  const isNew = !store.myPersonalPrediction;
 
   const displayBracket = useMemo(
     () => bracket ? computePredictionBracket(bracket, predictions) : null,
@@ -93,49 +71,71 @@ export default function PicksScreen() {
   );
 
   useEffect(() => {
-    if (myPrediction?.predictions) {
-      setPredictions(myPrediction.predictions);
+    if (user && leagueId) {
+      store.loadMyPersonalPrediction(leagueId, user.id);
     }
-  }, [myPrediction?.predictions]);
+  }, [user?.id, leagueId]);
+
+  useEffect(() => {
+    if (store.myPersonalPrediction?.predictions) {
+      setPredictions(store.myPersonalPrediction.predictions);
+    }
+  }, [store.myPersonalPrediction?.predictions]);
 
   function handlePickTeam(matchId: string, teamId: string) {
-    if (isLocked || deadlinePast) return;
+    if (isLocked) return;
     setPredictions((prev) => ({ ...prev, [matchId]: teamId }));
   }
 
-  async function handleSave() {
-    if (!displayBracket || !group) return;
-    await savePrediction(predictions, displayBracket);
+  async function doSave(name?: string) {
+    if (!displayBracket || !user || !leagueId) return;
+    setSaving(true);
+    await store.savePersonalPrediction(leagueId, user.id, predictions, displayBracket, name);
+    setSaving(false);
     if (Platform.OS === 'web') {
-      window.alert('Saved! Your picks have been saved.');
+      window.alert('Saved! Your personal bracket has been saved.');
     } else {
-      Alert.alert('Saved!', 'Your picks have been saved. You can update them until the deadline.');
+      Alert.alert('Saved!', 'Your personal bracket has been saved.');
     }
   }
 
-  async function doLock() {
-    if (!displayBracket || !group) return;
-    await savePrediction(predictions, displayBracket);
-    await lockPrediction();
-    if (Platform.OS === 'web') {
-      window.alert('Picks Locked! Your bracket is locked in. Good luck!');
+  function handleSave() {
+    if (isNew) {
+      // First save — prompt for a name
+      setShowNamePrompt(true);
     } else {
-      Alert.alert('Picks Locked', 'Your bracket is locked in. Good luck!');
+      doSave();
+    }
+  }
+
+  async function doLock(name?: string) {
+    if (!displayBracket || !user || !leagueId) return;
+    setSaving(true);
+    await store.savePersonalPrediction(leagueId, user.id, predictions, displayBracket, name);
+    const pred = useGroupStore.getState().myPersonalPrediction;
+    if (pred) await store.lockPrediction(pred.id);
+    setSaving(false);
+    if (Platform.OS === 'web') {
+      window.alert('Picks Locked! Your personal bracket is locked in.');
+    } else {
+      Alert.alert('Picks Locked', 'Your personal bracket is locked in.');
     }
   }
 
   function handleLock() {
+    if (isNew) {
+      setShowNamePrompt(true);
+      return;
+    }
     if (Platform.OS === 'web') {
-      if (window.confirm('Lock your picks? Once locked you cannot change them.')) {
-        doLock();
-      }
+      if (window.confirm('Lock your picks? Once locked you cannot change them.')) doLock();
     } else {
       Alert.alert(
         'Lock your picks?',
         'Once locked, your picks cannot be changed. Are you sure?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Lock Picks', style: 'destructive', onPress: doLock },
+          { text: 'Lock Picks', style: 'destructive', onPress: () => doLock() },
         ]
       );
     }
@@ -145,15 +145,11 @@ export default function PicksScreen() {
     if (!bracket) return;
     setShowQuickFill(false);
     const newPredictions: PredictionMap = {};
-
-    // Go round by round, propagating picks so later rounds have known teams
     let computed = bracket;
     for (const round of computed.rounds) {
-      // Recompute with picks so far to propagate teams into this round
       computed = computePredictionBracket(bracket, newPredictions);
       const computedRound = computed.rounds.find((r) => r.roundNumber === round.roundNumber);
       if (!computedRound) continue;
-
       for (const match of computedRound.matches) {
         if (!match.homeTeam || !match.awayTeam) continue;
         let winnerId: string;
@@ -170,27 +166,20 @@ export default function PicksScreen() {
     setPredictions(newPredictions);
   }
 
-  if (!group || !league) {
-    return <EmptyState title="Loading..." />;
-  }
-
   if (loadingBracket) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <Stack.Screen options={{ title: 'My Bracket' }} />
         <ActivityIndicator style={{ flex: 1 }} color={league?.primaryColor ?? COLORS.primary} size="large" />
       </SafeAreaView>
     );
   }
 
-  if (!bracket) {
+  if (!bracket || !league) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-        <Stack.Screen options={{ title: 'Make Picks' }} />
-        <EmptyState
-          icon="⏳"
-          title="Bracket not available"
-          subtitle="The playoff bracket hasn't been set yet. Check back closer to the start."
-        />
+        <Stack.Screen options={{ title: 'My Bracket' }} />
+        <EmptyState icon="⏳" title="Bracket not available yet" subtitle="Check back when the playoffs begin." />
       </SafeAreaView>
     );
   }
@@ -200,21 +189,14 @@ export default function PicksScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      <Stack.Screen
-        options={{
-          title: isLocked ? '🔒 Picks Locked' : 'Make Your Picks',
-        }}
-      />
+      <Stack.Screen options={{ title: isLocked ? '🔒 My Bracket (Locked)' : 'My Personal Bracket' }} />
 
       {/* Progress bar */}
       <View style={[styles.progressBar, { backgroundColor: theme.surfaceAlt }]}>
         <View
           style={[
             styles.progressFill,
-            {
-              backgroundColor: league.primaryColor,
-              width: `${totalMatches > 0 ? (pickedCount / totalMatches) * 100 : 0}%`,
-            },
+            { backgroundColor: league.primaryColor, width: `${totalMatches > 0 ? (pickedCount / totalMatches) * 100 : 0}%` },
           ]}
         />
       </View>
@@ -222,15 +204,12 @@ export default function PicksScreen() {
         <Text style={[styles.progressText, { color: theme.textSecondary }]}>
           {pickedCount}/{totalMatches} picks made
         </Text>
-        {(isLocked || deadlinePast) && (
-          <Text style={[styles.lockedText, { color: COLORS.completed }]}>
-            {isLocked ? '🔒 Locked' : '⏰ Deadline passed'}
-          </Text>
+        {isLocked && (
+          <Text style={[styles.lockedText, { color: COLORS.completed ?? '#10B981' }]}>🔒 Locked</Text>
         )}
       </View>
 
-      {/* Instructions + Quick Fill */}
-      {!isLocked && !deadlinePast && (
+      {!isLocked && (
         <>
           <View style={[styles.instructionsRow, { backgroundColor: theme.surfaceAlt }]}>
             <Text style={[styles.instructionsText, { color: theme.textSecondary, flex: 1 }]}>
@@ -241,17 +220,13 @@ export default function PicksScreen() {
               style={[styles.quickFillBtn, { borderColor: league.primaryColor }]}
               activeOpacity={0.8}
             >
-              <Text style={[styles.quickFillBtnText, { color: league.primaryColor }]}>
-                ⚡ Quick Fill
-              </Text>
+              <Text style={[styles.quickFillBtnText, { color: league.primaryColor }]}>⚡ Quick Fill</Text>
             </TouchableOpacity>
           </View>
 
           {showQuickFill && (
             <View style={[styles.quickFillMenu, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.quickFillLabel, { color: theme.textSecondary }]}>
-                Fill all picks automatically:
-              </Text>
+              <Text style={[styles.quickFillLabel, { color: theme.textSecondary }]}>Fill all picks automatically:</Text>
               <View style={styles.quickFillOptions}>
                 <TouchableOpacity
                   style={[styles.quickFillOption, { borderColor: league.primaryColor, backgroundColor: league.primaryColor + '18' }]}
@@ -259,9 +234,7 @@ export default function PicksScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.quickFillOptionTitle, { color: league.primaryColor }]}>🏆 Top Seed</Text>
-                  <Text style={[styles.quickFillOptionSub, { color: theme.textSecondary }]}>
-                    Higher seed always wins
-                  </Text>
+                  <Text style={[styles.quickFillOptionSub, { color: theme.textSecondary }]}>Higher seed always wins</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.quickFillOption, { borderColor: theme.border }]}
@@ -269,9 +242,7 @@ export default function PicksScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.quickFillOptionTitle, { color: theme.text }]}>🎲 Random</Text>
-                  <Text style={[styles.quickFillOptionSub, { color: theme.textSecondary }]}>
-                    Randomly pick winners
-                  </Text>
+                  <Text style={[styles.quickFillOptionSub, { color: theme.textSecondary }]}>Randomly pick winners</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -279,37 +250,34 @@ export default function PicksScreen() {
         </>
       )}
 
-      {/* Bracket */}
       <View style={styles.bracketArea}>
         <BracketViewer
           bracket={displayBracket!}
           predictions={predictions}
-          onPickTeam={!isLocked && !deadlinePast ? handlePickTeam : undefined}
-          isLocked={isLocked || deadlinePast}
+          onPickTeam={!isLocked ? handlePickTeam : undefined}
+          isLocked={isLocked}
           primaryColor={league.primaryColor}
         />
       </View>
 
-      {/* Action buttons — editing */}
-      {!isLocked && !deadlinePast && (
+      {!isLocked && (
         <View style={[styles.actions, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
           <TouchableOpacity
             style={[styles.saveButton, { borderColor: league.primaryColor }]}
             onPress={handleSave}
-            disabled={savingPrediction}
+            disabled={saving}
             activeOpacity={0.8}
           >
-            {savingPrediction ? (
+            {saving ? (
               <ActivityIndicator color={league.primaryColor} />
             ) : (
-              <Text style={[styles.saveButtonText, { color: league.primaryColor }]}>Save Picks</Text>
+              <Text style={[styles.saveButtonText, { color: league.primaryColor }]}>Save Bracket</Text>
             )}
           </TouchableOpacity>
-
           <TouchableOpacity
             style={[styles.lockButton, { backgroundColor: league.primaryColor }]}
             onPress={handleLock}
-            disabled={savingPrediction || pickedCount === 0}
+            disabled={saving || pickedCount === 0}
             activeOpacity={0.85}
           >
             <Text style={styles.lockButtonText}>Lock Picks 🔒</Text>
@@ -317,6 +285,42 @@ export default function PicksScreen() {
         </View>
       )}
 
+      {/* Name prompt modal */}
+      <Modal visible={showNamePrompt} transparent animationType="fade">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Name your bracket</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
+              Give it a name so you can find it easily in My Brackets.
+            </Text>
+            <TextInput
+              style={[styles.modalInput, { backgroundColor: theme.surfaceAlt, color: theme.text, borderColor: theme.border }]}
+              placeholder={`My ${league.name} Bracket`}
+              placeholderTextColor={theme.textTertiary}
+              value={bracketName}
+              onChangeText={setBracketName}
+              maxLength={40}
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalSecondary, { borderColor: theme.border }]}
+                onPress={() => { setShowNamePrompt(false); doSave(undefined); }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.modalSecondaryText, { color: theme.textSecondary }]}>Skip</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalPrimary, { backgroundColor: league.primaryColor }]}
+                onPress={() => { setShowNamePrompt(false); doSave(bracketName.trim() || undefined); }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalPrimaryText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -395,4 +399,43 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   lockButtonText: { color: '#FFF', fontSize: FONT_SIZE.base, fontWeight: FONT_WEIGHT.bold },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: SPACING.xl,
+  },
+  modalCard: {
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    padding: SPACING.xl,
+    gap: SPACING.md,
+  },
+  modalTitle: { fontSize: FONT_SIZE.lg, fontWeight: FONT_WEIGHT.bold },
+  modalSubtitle: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
+  modalInput: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.base,
+    fontSize: FONT_SIZE.base,
+  },
+  modalActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
+  modalSecondary: {
+    flex: 1,
+    height: 44,
+    borderWidth: 1,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSecondaryText: { fontSize: FONT_SIZE.base, fontWeight: FONT_WEIGHT.medium },
+  modalPrimary: {
+    flex: 2,
+    height: 44,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalPrimaryText: { color: '#FFF', fontSize: FONT_SIZE.base, fontWeight: FONT_WEIGHT.bold },
 });

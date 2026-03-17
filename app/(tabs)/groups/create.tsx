@@ -12,7 +12,7 @@ import {
   Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useGroupStore } from '../../../store/groupStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useLeagues } from '../../../hooks/useLeague';
@@ -31,8 +31,12 @@ export default function CreateGroupScreen() {
   const user = useAuthStore((s) => s.user);
   const profile = useAuthStore((s) => s.profile);
 
+  const { leagueId: preselectedLeagueId } = useLocalSearchParams<{ leagueId?: string }>();
+
   const [groupName, setGroupName] = useState('');
-  const [selectedLeague, setSelectedLeague] = useState<LeagueId | null>(null);
+  const [selectedLeague, setSelectedLeague] = useState<LeagueId | null>(
+    (preselectedLeagueId as LeagueId) ?? null
+  );
   const [deadline, setDeadline] = useState(addDays(new Date(), 7));
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -92,7 +96,11 @@ export default function CreateGroupScreen() {
   async function handleCopyLink() {
     if (!createdGroup) return;
     const link = Platform.OS === 'web' && typeof window !== 'undefined'
-      ? `${window.location.origin}${window.location.pathname.replace(/\/(tabs).*$/, '')}/(tabs)/groups/join?code=${createdGroup.inviteCode}`
+      ? (() => {
+          const match = window.location.pathname.match(/^(.*?)\/(?:groups|leagues|profile|leaderboard|welcome|sign)/);
+          const basePath = match ? match[1] : '';
+          return `${window.location.origin}${basePath}/groups/join?code=${createdGroup.inviteCode}`;
+        })()
       : `Join code: ${createdGroup.inviteCode}`;
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -106,7 +114,11 @@ export default function CreateGroupScreen() {
   async function handleShare() {
     if (!createdGroup) return;
     const link = Platform.OS === 'web' && typeof window !== 'undefined'
-      ? `${window.location.origin}${window.location.pathname.replace(/\/(tabs).*$/, '')}/(tabs)/groups/join?code=${createdGroup.inviteCode}`
+      ? (() => {
+          const match = window.location.pathname.match(/^(.*?)\/(?:groups|leagues|profile|leaderboard|welcome|sign)/);
+          const basePath = match ? match[1] : '';
+          return `${window.location.origin}${basePath}/groups/join?code=${createdGroup.inviteCode}`;
+        })()
       : '';
     try {
       await Share.share({

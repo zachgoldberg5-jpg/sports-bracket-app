@@ -18,6 +18,8 @@ interface GroupState {
   currentGroup: Group | null;
   members: GroupMember[];
   myPrediction: UserPrediction | null;
+  myPersonalPrediction: UserPrediction | null;
+  allMyPredictions: UserPrediction[];
   loading: boolean;
   savingPrediction: boolean;
   lastError: string | null;
@@ -36,6 +38,8 @@ interface GroupState {
   deleteGroup: (groupId: string) => Promise<boolean>;
   loadMembers: (groupId: string) => Promise<void>;
   loadMyPrediction: (groupId: string, bracketId: string, userId: string) => Promise<void>;
+  loadMyPersonalPrediction: (leagueId: string, userId: string) => Promise<void>;
+  loadAllMyPredictions: (userId: string) => Promise<void>;
   savePrediction: (
     groupId: string,
     bracketId: string,
@@ -43,6 +47,14 @@ interface GroupState {
     predictions: PredictionMap,
     bracket: Bracket
   ) => Promise<void>;
+  savePersonalPrediction: (
+    leagueId: string,
+    userId: string,
+    predictions: PredictionMap,
+    bracket: Bracket,
+    name?: string
+  ) => Promise<void>;
+  renamePersonalPrediction: (predictionId: string, name: string) => Promise<void>;
   lockPrediction: (predictionId: string) => Promise<void>;
   unlockPrediction: (predictionId: string) => Promise<void>;
 }
@@ -52,6 +64,8 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   currentGroup: null,
   members: [],
   myPrediction: null,
+  myPersonalPrediction: null,
+  allMyPredictions: [],
   loading: false,
   savingPrediction: false,
   lastError: null,
@@ -266,12 +280,20 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     }
     const rules = currentGroup?.scoringRules ?? DEFAULT_SCORING_RULES;
 
-    // Find the championship match (last round, position 0) to show champion pick logo
-    const champMatch = liveBracket
-      ? (() => {
-          const lastRound = liveBracket.rounds[liveBracket.rounds.length - 1];
-          return lastRound?.matches.find((m) => m.position === 0) ?? null;
-        })()
+    // Build a lookup of all teams by ID (for logo resolution)
+    const teamById = new Map<string, import('../types').Team>();
+    if (liveBracket) {
+      for (const round of liveBracket.rounds) {
+        for (const match of round.matches) {
+          if (match.homeTeam) teamById.set(match.homeTeam.id, match.homeTeam);
+          if (match.awayTeam) teamById.set(match.awayTeam.id, match.awayTeam);
+        }
+      }
+    }
+
+    // Find the championship match ID (last round, position 0)
+    const champMatchId = liveBracket
+      ? liveBracket.rounds[liveBracket.rounds.length - 1]?.matches.find((m) => m.position === 0)?.id ?? null
       : null;
 
     const members: GroupMember[] = (profilesRes.data ?? []).map((p, idx) => {
@@ -293,13 +315,10 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       // Resolve picked champion team for logo display
       let pickedChampionLogo: string | undefined;
       let pickedChampionName: string | undefined;
-      if (champMatch) {
-        const pickedId = predParsed[champMatch.id];
+      if (champMatchId) {
+        const pickedId = predParsed[champMatchId];
         if (pickedId) {
-          const team =
-            champMatch.homeTeam?.id === pickedId ? champMatch.homeTeam
-            : champMatch.awayTeam?.id === pickedId ? champMatch.awayTeam
-            : undefined;
+          const team = teamById.get(pickedId);
           pickedChampionLogo = team?.logoUrl;
           pickedChampionName = team?.name;
         }
@@ -309,6 +328,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
         userId: p.id,
         pickedChampionLogo,
         pickedChampionName,
+        predictions: predParsed,
         profile: {
           id: p.id,
           username: p.username,
@@ -402,6 +422,150 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     } finally {
       set({ savingPrediction: false });
     }
+  },
+
+  loadMyPersonalPrediction: async (leagueId, userId) => {
+    const { data } = await supabase
+      .from('user_predictions')
+      .select('*')
+      .eq('league_id', leagueId)
+      .eq('user_id', userId)
+      .is('group_id', null)
+      .single();
+
+    if (data) {
+      set({
+        myPersonalPrediction: {
+          id: data.id,
+          userId: data.user_id,
+          bracketId: data.bracket_id ?? '',
+          groupId: null,
+          leagueId: data.league_id as import('../types').LeagueId,
+          name: data.name ?? undefined,
+          predictions: typeof data.predictions === 'string' ? JSON.parse(data.predictions) : data.predictions,
+          score: data.score,
+          correctPicks: data.correct_picks,
+          locked: data.locked,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+        },
+      });
+    } else {
+      set({ myPersonalPrediction: null });
+    }
+  },
+
+  loadAllMyPredictions: async (userId) => {
+    const { data } = await supabase
+      .from('user_predictions')
+      .select('*, groups(name, league_id)')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
+
+    if (!data) return;
+
+    const predictions: UserPrediction[] = data.map((row) => {
+      // group brackets get league from the groups join; personal brackets have league_id directly
+      const leagueId = (row.groups?.league_id ?? row.league_id ?? null) as import('../types').LeagueId | undefined;
+      return {
+        id: row.id,
+        userId: row.user_id,
+        bracketId: row.bracket_id ?? '',
+        groupId: row.group_id ?? null,
+        groupName: row.groups?.name,
+        leagueId,
+        name: row.name ?? undefined,
+        predictions: typeof row.predictions === 'string' ? JSON.parse(row.predictions) : row.predictions,
+        score: row.score,
+        correctPicks: row.correct_picks,
+        locked: row.locked,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+    });
+
+    set({ allMyPredictions: predictions });
+  },
+
+  savePersonalPrediction: async (leagueId, userId, predictions, bracket, name) => {
+    set({ savingPrediction: true });
+    try {
+      const { DEFAULT_SCORING_RULES } = await import('../constants/scoring');
+      const rules = DEFAULT_SCORING_RULES;
+      const { calculateScore } = await import('../lib/scoring');
+      const { score, correctPicks } = calculateScore(predictions, bracket, rules);
+
+      // Check if personal prediction already exists for this league
+      const { data: existing } = await supabase
+        .from('user_predictions')
+        .select('id')
+        .eq('league_id', leagueId)
+        .eq('user_id', userId)
+        .is('group_id', null)
+        .single();
+
+      let data;
+      if (existing) {
+        const updatePayload: Record<string, unknown> = { predictions, score, correct_picks: correctPicks };
+        if (name !== undefined) updatePayload.name = name;
+        const res = await supabase
+          .from('user_predictions')
+          .update(updatePayload)
+          .eq('id', existing.id)
+          .select()
+          .single();
+        data = res.data;
+      } else {
+        const res = await supabase
+          .from('user_predictions')
+          .insert({
+            user_id: userId,
+            league_id: leagueId,
+            bracket_id: null,
+            group_id: null,
+            predictions,
+            score,
+            correct_picks: correctPicks,
+            ...(name ? { name } : {}),
+          })
+          .select()
+          .single();
+        data = res.data;
+      }
+
+      if (data) {
+        set({
+          myPersonalPrediction: {
+            id: data.id,
+            userId: data.user_id,
+            bracketId: data.bracket_id ?? '',
+            groupId: null,
+            leagueId: leagueId as import('../types').LeagueId,
+            name: data.name ?? undefined,
+            predictions,
+            score: data.score,
+            correctPicks: data.correct_picks,
+            locked: data.locked,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at,
+          },
+        });
+      }
+    } finally {
+      set({ savingPrediction: false });
+    }
+  },
+
+  renamePersonalPrediction: async (predictionId, name) => {
+    await supabase.from('user_predictions').update({ name }).eq('id', predictionId);
+    set((s) => ({
+      myPersonalPrediction: s.myPersonalPrediction?.id === predictionId
+        ? { ...s.myPersonalPrediction, name }
+        : s.myPersonalPrediction,
+      allMyPredictions: s.allMyPredictions.map((p) =>
+        p.id === predictionId ? { ...p, name } : p
+      ),
+    }));
   },
 
   lockPrediction: async (predictionId) => {

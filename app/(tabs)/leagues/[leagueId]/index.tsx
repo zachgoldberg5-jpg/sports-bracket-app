@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,8 @@ import {
   RefreshControl,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   useColorScheme,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
@@ -21,8 +19,7 @@ import { StatusBadge } from '../../../../components/leagues/StatusBadge';
 import { ChampionDisplay } from '../../../../components/bracket/ChampionDisplay';
 import { EmptyState } from '../../../../components/ui/EmptyState';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SPACING } from '../../../../constants/theme';
-import { projectBracket } from '../../../../lib/bracketProjection';
-import type { LeagueId, PredictionMap } from '../../../../types';
+import type { LeagueId } from '../../../../types';
 import { format } from 'date-fns';
 
 export default function LeagueDetailScreen() {
@@ -34,24 +31,23 @@ export default function LeagueDetailScreen() {
     leagueId as LeagueId
   );
 
-  // Picks state — must be before any early returns (Rules of Hooks)
-  const [predictions, setPredictions] = useState<PredictionMap>({});
-  const [tiebreakerScore, setTiebreakerScore] = useState('');
-
-  const projectedBracket = useMemo(
-    () => (bracket ? projectBracket(bracket, predictions) : null),
-    [bracket, predictions]
-  );
-
-  const handlePickTeam = (matchId: string, teamId: string) => {
-    setPredictions((prev) => ({ ...prev, [matchId]: teamId }));
-  };
-
   if (!league) {
     return <EmptyState title="League not found" />;
   }
 
   const loading = loadingBracket || loadingStandings;
+
+  function handleCreateBracket() {
+    const goToGroup = Platform.OS === 'web'
+      ? window.confirm('Would you like to create a group so friends can compete with you?\n\nOK = Create a group\nCancel = Personal bracket only')
+      : false; // native: show action sheet below (handled separately)
+
+    if (goToGroup) {
+      router.push(`/groups/create?leagueId=${leagueId}`);
+    } else {
+      router.push(`/(tabs)/leagues/${leagueId}/picks`);
+    }
+  }
 
   // ── Off-season ──────────────────────────────────────────────────────────────
   if (league.status === 'off_season') {
@@ -157,41 +153,22 @@ export default function LeagueDetailScreen() {
         <Text style={[styles.season, { color: theme.textSecondary }]}>{league.season}</Text>
       </View>
 
+      {/* Create Bracket button */}
+      <TouchableOpacity
+        style={[styles.createBracketBtn, { backgroundColor: COLORS.primary }]}
+        onPress={handleCreateBracket}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.createBracketText}>+ Create Bracket</Text>
+      </TouchableOpacity>
+
       {loadingBracket ? (
         <ActivityIndicator style={{ flex: 1 }} color={league.primaryColor} />
       ) : bracket ? (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <BracketViewer
-            bracket={projectedBracket!}
-            predictions={predictions}
-            onPickTeam={handlePickTeam}
-            primaryColor={league.primaryColor}
-          />
-          <View style={[styles.tiebreakerRow, { borderTopColor: theme.border }]}>
-            <Text style={[styles.tiebreakerLabel, { color: theme.textSecondary }]}>
-              Tiebreaker: final score total
-            </Text>
-            <TextInput
-              style={[
-                styles.tiebreakerInput,
-                {
-                  color: theme.text,
-                  borderColor: theme.border,
-                  backgroundColor: theme.surface,
-                },
-              ]}
-              value={tiebreakerScore}
-              onChangeText={setTiebreakerScore}
-              placeholder="0"
-              placeholderTextColor={theme.textTertiary}
-              keyboardType="number-pad"
-              maxLength={4}
-            />
-          </View>
-        </KeyboardAvoidingView>
+        <BracketViewer
+          bracket={bracket}
+          primaryColor={league.primaryColor}
+        />
       ) : (
         <EmptyState
           icon="🏀"
@@ -216,6 +193,19 @@ const styles = StyleSheet.create({
   },
   season: { fontSize: FONT_SIZE.sm },
   fullscreenBtn: { paddingRight: SPACING.sm },
+  createBracketBtn: {
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.sm,
+    height: 44,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createBracketText: {
+    color: '#FFF',
+    fontSize: FONT_SIZE.sm,
+    fontWeight: FONT_WEIGHT.bold,
+  },
   banner: {
     margin: SPACING.base,
     padding: SPACING.base,
@@ -236,22 +226,4 @@ const styles = StyleSheet.create({
   },
   bracketSection: { marginTop: SPACING.base },
   bracketContainer: { height: 400 },
-  tiebreakerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.base,
-    paddingVertical: SPACING.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  tiebreakerLabel: { fontSize: FONT_SIZE.sm },
-  tiebreakerInput: {
-    width: 72,
-    textAlign: 'center',
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
-    borderWidth: 1,
-    borderRadius: RADIUS.sm,
-    fontSize: FONT_SIZE.md,
-  },
 });

@@ -57,40 +57,11 @@ export async function getBracket(leagueId: LeagueId, season?: string): Promise<B
   );
 }
 
+// Leagues currently in their tournament/playoff period
+const LIVE_LEAGUES = new Set<LeagueId>(['ncaa_mm', 'wbc', 'ucl']);
+
 export async function getLeagueStatus(leagueId: LeagueId): Promise<LeagueStatus> {
-  return withCache(
-    `status_${leagueId}`,
-    async () => {
-      // Check Supabase leagues table first for explicit status overrides
-      if (supabaseConfigured) {
-        try {
-          const { data } = await supabase
-            .from('leagues')
-            .select('status')
-            .eq('id', leagueId)
-            .single();
-          if (data?.status) return data.status as LeagueStatus;
-        } catch {
-          // fall through to bracket-derived status
-        }
-      }
-      try {
-        const bracket = await getBracket(leagueId);
-        if (bracket.champion) return 'completed';
-        const hasLiveMatches = bracket.rounds
-          .flatMap((r) => r.matches)
-          .some((m) => m.status === 'live');
-        const hasScheduledMatches = bracket.rounds
-          .flatMap((r) => r.matches)
-          .some((m) => m.status === 'scheduled');
-        if (hasLiveMatches || hasScheduledMatches) return 'live';
-        return 'upcoming';
-      } catch {
-        return 'off_season';
-      }
-    },
-    TTL.LIVE
-  );
+  return LIVE_LEAGUES.has(leagueId) ? 'live' : 'upcoming';
 }
 
 // ─── Supabase bracket fetcher ─────────────────────────────────────────────────

@@ -140,6 +140,7 @@ export interface GroupMember {
   totalPicks: number;
   pickedChampionLogo?: string;
   pickedChampionName?: string;
+  predictions?: PredictionMap;
 }
 
 // Map of matchId → predicted winnerId
@@ -149,7 +150,10 @@ export interface UserPrediction {
   id: string;
   userId: string;
   bracketId: string;
-  groupId: string;
+  groupId: string | null; // null for personal (no-group) brackets
+  leagueId?: LeagueId; // populated on load for My Brackets display
+  groupName?: string; // populated on load for My Brackets display
+  name?: string; // user-given bracket name
   predictions: PredictionMap;
   tiebreakerScore?: number;
   score: number;

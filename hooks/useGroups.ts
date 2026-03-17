@@ -3,6 +3,9 @@ import { useGroupStore } from '../store/groupStore';
 import { useAuthStore } from '../store/authStore';
 import type { PredictionMap, Bracket, LeagueId } from '../types';
 
+// Helper to get fresh store state, avoiding stale closure bugs
+const freshStore = () => useGroupStore.getState();
+
 export function useGroups() {
   const store = useGroupStore();
   const user = useAuthStore((s) => s.user);
@@ -52,14 +55,12 @@ export function useGroup(groupId: string) {
       );
     },
     lockPrediction: async () => {
-      if (store.myPrediction) {
-        await store.lockPrediction(store.myPrediction.id);
-      }
+      const pred = freshStore().myPrediction;
+      if (pred) await store.lockPrediction(pred.id);
     },
     unlockPrediction: async () => {
-      if (store.myPrediction) {
-        await store.unlockPrediction(store.myPrediction.id);
-      }
+      const pred = freshStore().myPrediction;
+      if (pred) await store.unlockPrediction(pred.id);
     },
     createGroup: async (
       name: string,

@@ -16,8 +16,10 @@ export function InviteCodeCard({ code, groupName }: InviteCodeCardProps) {
 
   const getInviteLink = () => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const base = window.location.origin + window.location.pathname.replace(/\/(tabs).*$/, '');
-      return `${base}/(tabs)/groups/join?code=${code}`;
+      // Extract app base path (e.g. /sports-bracket-app) from current URL
+      const match = window.location.pathname.match(/^(.*?)\/(?:groups|leagues|profile|leaderboard|welcome|sign)/);
+      const basePath = match ? match[1] : '';
+      return `${window.location.origin}${basePath}/groups/join?code=${code}`;
     }
     return null;
   };

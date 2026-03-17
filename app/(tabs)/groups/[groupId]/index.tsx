@@ -28,9 +28,10 @@ export default function GroupDetailScreen() {
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
   const userId = useAuthStore((s) => s.user?.id);
 
-  const { group, members, myPrediction, loading } = useGroup(groupId);
+  const { group, members, myPrediction, loading, unlockPrediction } = useGroup(groupId);
   const deleteGroup = useGroupStore((s) => s.deleteGroup);
   const [deleting, setDeleting] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
 
   const isOwner = group?.createdBy === userId;
 
@@ -107,27 +108,63 @@ export default function GroupDetailScreen() {
           <LeaderboardRow
             member={item}
             isCurrentUser={item.userId === userId}
+            onPress={() => router.push({
+              pathname: '/(tabs)/groups/[groupId]/member-bracket' as any,
+              params: {
+                groupId,
+                memberId: item.userId,
+                displayName: item.profile.displayName,
+                predictionsJson: JSON.stringify(item.predictions ?? {}),
+              },
+            })}
           />
         )}
         ListHeaderComponent={
           <>
-            {/* Picks CTA */}
-            {!deadlinePast && (
+            {/* Picks CTA — only show when not yet locked */}
+            {!deadlinePast && !myPrediction?.locked && (
               <TouchableOpacity
                 style={[styles.picksBanner, { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary + '44' }]}
                 onPress={() => router.push(`/(tabs)/groups/${groupId}/picks`)}
                 activeOpacity={0.8}
               >
                 <View style={styles.picksContent}>
-                  <Text style={[styles.picksTitle, { color: COLORS.primary }]}>
-                    {myPrediction?.locked ? '✅ Picks submitted!' : '📝 Make your picks'}
-                  </Text>
+                  <Text style={[styles.picksTitle, { color: COLORS.primary }]}>📝 Make your picks</Text>
                   <Text style={[styles.picksSubtitle, { color: COLORS.primary + 'BB' }]}>
                     Deadline: {format(new Date(group.pickDeadline), 'MMM d · h:mm a')}
                   </Text>
                 </View>
                 <Text style={[styles.picksArrow, { color: COLORS.primary }]}>›</Text>
               </TouchableOpacity>
+            )}
+
+            {/* View/Edit Bracket — shown after locking, disappears after deadline */}
+            {myPrediction?.locked && !deadlinePast && (
+              <View style={[styles.viewEditRow, { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary + '44' }]}>
+                <TouchableOpacity
+                  style={styles.viewEditBtn}
+                  onPress={() => router.push(`/(tabs)/groups/${groupId}/picks`)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.viewEditText, { color: COLORS.primary }]}>👁 View Bracket</Text>
+                </TouchableOpacity>
+                <View style={[styles.viewEditDivider, { backgroundColor: COLORS.primary + '44' }]} />
+                <TouchableOpacity
+                  style={styles.viewEditBtn}
+                  onPress={async () => {
+                    setUnlocking(true);
+                    await unlockPrediction();
+                    setUnlocking(false);
+                    router.push(`/(tabs)/groups/${groupId}/picks`);
+                  }}
+                  disabled={unlocking}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.viewEditText, { color: COLORS.primary }]}>
+                    {unlocking ? '...' : '✏️ Edit Bracket'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             {/* Invite code */}
@@ -175,6 +212,27 @@ const styles = StyleSheet.create({
   picksTitle: { fontSize: FONT_SIZE.md, fontWeight: FONT_WEIGHT.semibold },
   picksSubtitle: { fontSize: FONT_SIZE.sm, marginTop: 2 },
   picksArrow: { fontSize: 24 },
+  viewEditRow: {
+    flexDirection: 'row',
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  viewEditBtn: {
+    flex: 1,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewEditDivider: {
+    width: 1,
+  },
+  viewEditText: {
+    fontSize: FONT_SIZE.sm,
+    fontWeight: FONT_WEIGHT.semibold,
+  },
   inviteWrap: { paddingHorizontal: SPACING.base, marginBottom: SPACING.base },
   leaderboardHeader: {
     paddingHorizontal: SPACING.base,
