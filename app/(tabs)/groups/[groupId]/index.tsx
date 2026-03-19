@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Modal,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
@@ -19,8 +21,8 @@ import { useGroupStore } from '../../../../store/groupStore';
 import { LeaderboardRow } from '../../../../components/groups/LeaderboardRow';
 import { InviteCodeCard } from '../../../../components/groups/InviteCodeCard';
 import { EmptyState } from '../../../../components/ui/EmptyState';
-import { COLORS, FONT_SIZE, FONT_WEIGHT, SPACING } from '../../../../constants/theme';
-import { format, isPast } from 'date-fns';
+import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SPACING } from '../../../../constants/theme';
+import { format, isPast, addDays } from 'date-fns';
 
 export default function GroupDetailScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
@@ -30,10 +32,34 @@ export default function GroupDetailScreen() {
 
   const { group, members, myPrediction, loading, unlockPrediction } = useGroup(groupId);
   const deleteGroup = useGroupStore((s) => s.deleteGroup);
+  const updateDeadline = useGroupStore((s) => s.updateDeadline);
+  const refreshInviteCode = useGroupStore((s) => s.refreshInviteCode);
   const [deleting, setDeleting] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
 
+  // Deadline editor state
+  const [showDeadlineModal, setShowDeadlineModal] = useState(false);
+  const [noDeadline, setNoDeadline] = useState(false);
+  const [editDeadline, setEditDeadline] = useState(addDays(new Date(), 7));
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [savingDeadline, setSavingDeadline] = useState(false);
+
   const isOwner = group?.createdBy === userId;
+
+  function openDeadlineEditor() {
+    if (!group) return;
+    setNoDeadline(group.pickDeadline === null);
+    setEditDeadline(group.pickDeadline ? new Date(group.pickDeadline) : addDays(new Date(), 7));
+    setShowDeadlineModal(true);
+  }
+
+  async function handleSaveDeadline() {
+    if (!groupId) return;
+    setSavingDeadline(true);
+    await updateDeadline(groupId, noDeadline ? null : editDeadline);
+    setSavingDeadline(false);
+    setShowDeadlineModal(false);
+  }
 
   function confirmDelete() {
     if (Platform.OS === 'web') {
@@ -72,7 +98,7 @@ export default function GroupDetailScreen() {
     return <EmptyState title="Group not found" />;
   }
 
-  const deadlinePast = isPast(new Date(group.pickDeadline));
+  const deadlinePast = group.pickDeadline ? isPast(new Date(group.pickDeadline)) : false;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -101,6 +127,135 @@ export default function GroupDetailScreen() {
         }}
       />
 
+      {/* Deadline Editor Modal */}
+      <Modal
+        visible={showDeadlineModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDeadlineModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowDeadlineModal(false)}
+        />
+        <View style={[styles.modalSheet, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.modalTitle, { color: theme.text }]}>Edit Pick Deadline</Text>
+
+          {/* No Deadline toggle */}
+          <View style={[styles.noDeadlineRow, { borderColor: theme.border }]}>
+            <Text style={[styles.noDeadlineLabel, { color: theme.text }]}>No deadline</Text>
+            <Switch
+              value={noDeadline}
+              onValueChange={setNoDeadline}
+              trackColor={{ true: COLORS.primary }}
+            />
+          </View>
+
+          {/* Date/time picker — hidden when no-deadline is on */}
+          {!noDeadline && (
+            Platform.OS === 'web' ? (
+              <View style={styles.webDateRow}>
+                {/* @ts-ignore */}
+                <input
+                  type="date"
+                  value={format(editDeadline, 'yyyy-MM-dd')}
+                  min={format(new Date(), 'yyyy-MM-dd')}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    if (e.target.value) {
+                      const [y, m, d] = e.target.value.split('-').map(Number);
+                      const next = new Date(editDeadline);
+                      next.setFullYear(y, m - 1, d);
+                      setEditDeadline(next);
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    background: theme.surfaceAlt,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 12,
+                    color: theme.text,
+                    fontSize: 15,
+                    height: 50,
+                    padding: '0 12px',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    colorScheme: scheme === 'dark' ? 'dark' : 'light',
+                  }}
+                />
+                {/* @ts-ignore */}
+                <input
+                  type="time"
+                  value={format(editDeadline, 'HH:mm')}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    if (e.target.value) {
+                      const [h, min] = e.target.value.split(':').map(Number);
+                      const next = new Date(editDeadline);
+                      next.setHours(h, min);
+                      setEditDeadline(next);
+                    }
+                  }}
+                  style={{
+                    width: 120,
+                    background: theme.surfaceAlt,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 12,
+                    color: theme.text,
+                    fontSize: 15,
+                    height: 50,
+                    padding: '0 12px',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    colorScheme: scheme === 'dark' ? 'dark' : 'light',
+                  }}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.dateButton, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={[styles.dateText, { color: theme.text }]}>
+                  📅 {format(editDeadline, 'MMM d, yyyy · h:mm a')}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[styles.modalBtn, { backgroundColor: theme.surfaceAlt }]}
+              onPress={() => setShowDeadlineModal(false)}
+            >
+              <Text style={[styles.modalBtnText, { color: theme.text }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalBtn, styles.modalSaveBtn, savingDeadline && { opacity: 0.6 }]}
+              onPress={handleSaveDeadline}
+              disabled={savingDeadline}
+            >
+              {savingDeadline
+                ? <ActivityIndicator color="#FFF" size="small" />
+                : <Text style={styles.modalSaveBtnText}>Save</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {Platform.OS !== 'web' && showDatePicker && (() => {
+          const DateTimePickerModal = require('react-native-modal-datetime-picker').default;
+          return (
+            <DateTimePickerModal
+              isVisible={showDatePicker}
+              mode="datetime"
+              date={editDeadline}
+              minimumDate={new Date()}
+              onConfirm={(date: Date) => { setEditDeadline(date); setShowDatePicker(false); }}
+              onCancel={() => setShowDatePicker(false)}
+            />
+          );
+        })()}
+      </Modal>
+
       <FlatList
         data={members}
         keyExtractor={(item) => item.userId}
@@ -123,18 +278,40 @@ export default function GroupDetailScreen() {
           <>
             {/* Picks CTA — only show when not yet locked */}
             {!deadlinePast && !myPrediction?.locked && (
+              <View style={[styles.picksBanner, { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary + '44' }]}>
+                <TouchableOpacity
+                  style={styles.picksMain}
+                  onPress={() => router.push(`/(tabs)/groups/${groupId}/picks`)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.picksContent}>
+                    <Text style={[styles.picksTitle, { color: COLORS.primary }]}>📝 Make your picks</Text>
+                    <Text style={[styles.picksSubtitle, { color: COLORS.primary + 'BB' }]}>
+                      {group.pickDeadline
+                        ? `Deadline: ${format(new Date(group.pickDeadline), 'MMM d · h:mm a')}`
+                        : 'No deadline'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.picksArrow, { color: COLORS.primary }]}>›</Text>
+                </TouchableOpacity>
+                {isOwner && (
+                  <TouchableOpacity style={styles.editDeadlineBtn} onPress={openDeadlineEditor}>
+                    <Text style={[styles.editDeadlineText, { color: COLORS.primary }]}>Edit Deadline</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Owner deadline editor when picks are locked or deadline past */}
+            {isOwner && (deadlinePast || myPrediction?.locked) && (
               <TouchableOpacity
-                style={[styles.picksBanner, { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary + '44' }]}
-                onPress={() => router.push(`/(tabs)/groups/${groupId}/picks`)}
-                activeOpacity={0.8}
+                style={[styles.editDeadlineRow, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}
+                onPress={openDeadlineEditor}
               >
-                <View style={styles.picksContent}>
-                  <Text style={[styles.picksTitle, { color: COLORS.primary }]}>📝 Make your picks</Text>
-                  <Text style={[styles.picksSubtitle, { color: COLORS.primary + 'BB' }]}>
-                    Deadline: {format(new Date(group.pickDeadline), 'MMM d · h:mm a')}
-                  </Text>
-                </View>
-                <Text style={[styles.picksArrow, { color: COLORS.primary }]}>›</Text>
+                <Text style={[styles.editDeadlineRowText, { color: theme.textSecondary }]}>
+                  Deadline: {group.pickDeadline ? format(new Date(group.pickDeadline), 'MMM d, yyyy · h:mm a') : 'None'}
+                </Text>
+                <Text style={[styles.editDeadlineText, { color: COLORS.primary }]}>Edit</Text>
               </TouchableOpacity>
             )}
 
@@ -169,7 +346,11 @@ export default function GroupDetailScreen() {
 
             {/* Invite code */}
             <View style={styles.inviteWrap}>
-              <InviteCodeCard code={group.inviteCode} groupName={group.name} />
+              <InviteCodeCard
+                code={group.inviteCode}
+                groupName={group.name}
+                onRefresh={isOwner ? async () => { await refreshInviteCode(groupId); } : undefined}
+              />
             </View>
 
             {/* Leaderboard header */}
@@ -202,9 +383,12 @@ const styles = StyleSheet.create({
   list: { paddingBottom: SPACING['2xl'] },
   picksBanner: {
     margin: SPACING.base,
-    padding: SPACING.base,
     borderRadius: 12,
     borderWidth: 1,
+    overflow: 'hidden',
+  },
+  picksMain: {
+    padding: SPACING.base,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -212,6 +396,68 @@ const styles = StyleSheet.create({
   picksTitle: { fontSize: FONT_SIZE.md, fontWeight: FONT_WEIGHT.semibold },
   picksSubtitle: { fontSize: FONT_SIZE.sm, marginTop: 2 },
   picksArrow: { fontSize: 24 },
+  editDeadlineBtn: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.primary + '44',
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
+  },
+  editDeadlineText: { fontSize: FONT_SIZE.sm, fontWeight: FONT_WEIGHT.semibold },
+  editDeadlineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: SPACING.base,
+    marginBottom: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: RADIUS.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  editDeadlineRowText: { fontSize: FONT_SIZE.sm },
+  // Modal
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  modalSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    gap: SPACING.base,
+  },
+  modalTitle: { fontSize: FONT_SIZE.lg, fontWeight: FONT_WEIGHT.bold, marginBottom: SPACING.xs },
+  noDeadlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: SPACING.base,
+  },
+  noDeadlineLabel: { fontSize: FONT_SIZE.base },
+  webDateRow: { flexDirection: 'row', gap: SPACING.sm },
+  dateButton: {
+    height: 50,
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.base,
+    justifyContent: 'center',
+  },
+  dateText: { fontSize: FONT_SIZE.base },
+  modalActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
+  modalBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBtnText: { fontSize: FONT_SIZE.sm, fontWeight: FONT_WEIGHT.semibold },
+  modalSaveBtn: { backgroundColor: COLORS.primary },
+  modalSaveBtnText: { color: '#FFF', fontSize: FONT_SIZE.sm, fontWeight: FONT_WEIGHT.bold },
   viewEditRow: {
     flexDirection: 'row',
     marginHorizontal: SPACING.base,

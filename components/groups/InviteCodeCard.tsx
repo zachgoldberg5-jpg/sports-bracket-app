@@ -1,22 +1,24 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Share, Platform, ActivityIndicator } from 'react-native';
 import { useColorScheme } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
 
 interface InviteCodeCardProps {
   code: string;
   groupName: string;
+  onRefresh?: () => Promise<void>;
 }
 
-export function InviteCodeCard({ code, groupName }: InviteCodeCardProps) {
+export function InviteCodeCard({ code, groupName, onRefresh }: InviteCodeCardProps) {
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
   const [codeCopied, setCodeCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const getInviteLink = () => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      // Extract app base path (e.g. /sports-bracket-app) from current URL
       const match = window.location.pathname.match(/^(.*?)\/(?:groups|leagues|profile|leaderboard|welcome|sign)/);
       const basePath = match ? match[1] : '';
       return `${window.location.origin}${basePath}/groups/join?code=${code}`;
@@ -37,29 +39,37 @@ export function InviteCodeCard({ code, groupName }: InviteCodeCardProps) {
   };
 
   const handleCopyCode = async () => {
-    try {
-      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(code);
-      }
-    } catch { /* ignore */ }
+    await Clipboard.setStringAsync(code);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
   };
 
   const handleCopyLink = async () => {
-    const link = getInviteLink() ?? `Join code: ${code}`;
-    try {
-      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(link);
-      }
-    } catch { /* ignore */ }
+    const link = getInviteLink() ?? `Invite code: ${code}`;
+    await Clipboard.setStringAsync(link);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   };
 
+  const handleRefresh = async () => {
+    if (!onRefresh) return;
+    setRefreshing(true);
+    await onRefresh();
+    setRefreshing(false);
+  };
+
   return (
     <View style={[styles.card, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
-      <Text style={[styles.label, { color: theme.textSecondary }]}>Invite Code</Text>
+      <View style={styles.labelRow}>
+        <Text style={[styles.label, { color: theme.textSecondary }]}>Invite Code</Text>
+        {onRefresh && (
+          <TouchableOpacity onPress={handleRefresh} disabled={refreshing} hitSlop={8}>
+            {refreshing
+              ? <ActivityIndicator size="small" color={COLORS.primary} />
+              : <Text style={[styles.refreshText, { color: COLORS.primary }]}>Refresh</Text>}
+          </TouchableOpacity>
+        )}
+      </View>
       <Text style={[styles.code, { color: COLORS.primary }]}>{code}</Text>
 
       <View style={styles.actions}>
@@ -103,11 +113,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.sm,
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
   label: {
     fontSize: FONT_SIZE.sm,
     fontWeight: FONT_WEIGHT.medium,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+  },
+  refreshText: {
+    fontSize: FONT_SIZE.sm,
+    fontWeight: FONT_WEIGHT.semibold,
   },
   code: {
     fontSize: FONT_SIZE['3xl'],

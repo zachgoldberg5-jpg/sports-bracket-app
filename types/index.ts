@@ -122,7 +122,7 @@ export interface Group {
   createdBy: string;
   leagueId: LeagueId;
   bracketId: string;
-  pickDeadline: string; // ISO datetime
+  pickDeadline: string | null; // ISO datetime, null = no deadline
   memberCount: number;
   scoringRules: ScoringRules;
   createdAt: string;

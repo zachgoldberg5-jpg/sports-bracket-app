@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { isPast } from 'date-fns';
 import { useGroupStore } from '../../../store/groupStore';
 import { useAuthStore } from '../../../store/authStore';
 import { PremiumGate } from '../../../components/ui/PremiumGate';
@@ -60,7 +61,27 @@ export default function JoinGroupScreen() {
     setLoading(false);
 
     if (group) {
-      router.replace(`/groups/${group.id}`);
+      const deadlinePast = group.pickDeadline ? isPast(new Date(group.pickDeadline)) : false;
+      if (!deadlinePast) {
+        if (Platform.OS === 'web') {
+          if (window.confirm(`You joined "${group.name}"! Would you like to make your bracket picks now?`)) {
+            router.replace(`/(tabs)/groups/${group.id}/picks`);
+          } else {
+            router.replace(`/groups/${group.id}`);
+          }
+        } else {
+          Alert.alert(
+            `Joined "${group.name}"!`,
+            'Would you like to make your bracket picks now?',
+            [
+              { text: 'Later', style: 'cancel', onPress: () => router.replace(`/groups/${group.id}`) },
+              { text: 'Make Picks', onPress: () => router.replace(`/(tabs)/groups/${group.id}/picks`) },
+            ]
+          );
+        }
+      } else {
+        router.replace(`/groups/${group.id}`);
+      }
     } else {
       showAlert('Group not found', 'That invite code is invalid or the group no longer exists.');
     }

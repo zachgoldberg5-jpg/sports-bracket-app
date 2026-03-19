@@ -85,7 +85,7 @@ export default function PicksScreen() {
   const [predictions, setPredictions] = useState<PredictionMap>({});
   const [showQuickFill, setShowQuickFill] = useState(false);
   const isLocked = myPrediction?.locked ?? false;
-  const deadlinePast = group ? isPast(new Date(group.pickDeadline)) : false;
+  const deadlinePast = group?.pickDeadline ? isPast(new Date(group.pickDeadline)) : false;
 
   const displayBracket = useMemo(
     () => bracket ? computePredictionBracket(bracket, predictions) : null,

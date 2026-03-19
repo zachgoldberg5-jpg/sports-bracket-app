@@ -16,10 +16,12 @@ export function GroupCard({ group, onPress }: GroupCardProps) {
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
 
   const config = LEAGUE_CONFIGS[group.leagueId];
-  const deadline = new Date(group.pickDeadline);
-  const deadlinePast = isPast(deadline);
+  const deadline = group.pickDeadline ? new Date(group.pickDeadline) : null;
+  const deadlinePast = deadline ? isPast(deadline) : false;
 
-  const deadlineText = deadlinePast
+  const deadlineText = !deadline
+    ? 'No deadline'
+    : deadlinePast
     ? 'Picks locked'
     : `Picks due ${formatDistanceToNow(deadline, { addSuffix: true })}`;
 

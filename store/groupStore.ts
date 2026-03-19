@@ -36,6 +36,8 @@ interface GroupState {
   joinGroup: (inviteCode: string, userId: string) => Promise<Group | null>;
   leaveGroup: (groupId: string, userId: string) => Promise<void>;
   deleteGroup: (groupId: string) => Promise<boolean>;
+  updateDeadline: (groupId: string, deadline: Date | null) => Promise<boolean>;
+  refreshInviteCode: (groupId: string) => Promise<string | null>;
   loadMembers: (groupId: string) => Promise<void>;
   loadMyPrediction: (groupId: string, bracketId: string, userId: string) => Promise<void>;
   loadMyPersonalPrediction: (leagueId: string, userId: string) => Promise<void>;
@@ -232,6 +234,36 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       user_id: userId,
     });
     set((s) => ({ groups: s.groups.filter((g) => g.id !== groupId) }));
+  },
+
+  refreshInviteCode: async (groupId) => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const newCode = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const { error } = await supabase.from('groups').update({ invite_code: newCode }).eq('id', groupId);
+    if (error) return null;
+    set((s) => ({
+      currentGroup: s.currentGroup?.id === groupId
+        ? { ...s.currentGroup, inviteCode: newCode }
+        : s.currentGroup,
+      groups: s.groups.map((g) => g.id === groupId ? { ...g, inviteCode: newCode } : g),
+    }));
+    return newCode;
+  },
+
+  updateDeadline: async (groupId, deadline) => {
+    const { error } = await supabase
+      .from('groups')
+      .update({ pick_deadline: deadline?.toISOString() ?? null })
+      .eq('id', groupId);
+    if (error) return false;
+    const iso = deadline?.toISOString() ?? null;
+    set((s) => ({
+      currentGroup: s.currentGroup?.id === groupId
+        ? { ...s.currentGroup, pickDeadline: iso }
+        : s.currentGroup,
+      groups: s.groups.map((g) => g.id === groupId ? { ...g, pickDeadline: iso } : g),
+    }));
+    return true;
   },
 
   deleteGroup: async (groupId) => {
