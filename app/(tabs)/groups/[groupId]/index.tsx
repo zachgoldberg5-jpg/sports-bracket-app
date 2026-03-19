@@ -276,8 +276,33 @@ export default function GroupDetailScreen() {
         )}
         ListHeaderComponent={
           <>
-            {/* Picks CTA — only show when not yet locked */}
-            {!deadlinePast && !myPrediction?.locked && (
+            {/* Create Bracket CTA — no picks yet */}
+            {!deadlinePast && !myPrediction && (
+              <View style={[styles.createBracketCard, { backgroundColor: theme.surfaceAlt, borderColor: theme.border }]}>
+                <Text style={[styles.createBracketEmoji]}>🏆</Text>
+                <Text style={[styles.createBracketTitle, { color: theme.text }]}>Create Your Bracket</Text>
+                <Text style={[styles.createBracketSub, { color: theme.textSecondary }]}>
+                  {group.pickDeadline
+                    ? `Pick your winners before ${format(new Date(group.pickDeadline), 'MMM d · h:mm a')}`
+                    : 'Pick your winners for each matchup'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.createBracketBtn}
+                  onPress={() => router.push(`/(tabs)/groups/${groupId}/picks`)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.createBracketBtnText}>Create Bracket</Text>
+                </TouchableOpacity>
+                {isOwner && (
+                  <TouchableOpacity onPress={openDeadlineEditor}>
+                    <Text style={[styles.editDeadlineText, { color: COLORS.primary }]}>Edit Deadline</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Edit picks CTA — has picks but not locked */}
+            {!deadlinePast && myPrediction && !myPrediction.locked && (
               <View style={[styles.picksBanner, { backgroundColor: COLORS.primary + '22', borderColor: COLORS.primary + '44' }]}>
                 <TouchableOpacity
                   style={styles.picksMain}
@@ -285,7 +310,7 @@ export default function GroupDetailScreen() {
                   activeOpacity={0.8}
                 >
                   <View style={styles.picksContent}>
-                    <Text style={[styles.picksTitle, { color: COLORS.primary }]}>📝 Make your picks</Text>
+                    <Text style={[styles.picksTitle, { color: COLORS.primary }]}>📝 Edit your picks</Text>
                     <Text style={[styles.picksSubtitle, { color: COLORS.primary + 'BB' }]}>
                       {group.pickDeadline
                         ? `Deadline: ${format(new Date(group.pickDeadline), 'MMM d · h:mm a')}`
@@ -381,6 +406,27 @@ export default function GroupDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { paddingBottom: SPACING['2xl'] },
+  createBracketCard: {
+    margin: SPACING.base,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    padding: SPACING.xl,
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  createBracketEmoji: { fontSize: 48 },
+  createBracketTitle: { fontSize: FONT_SIZE.xl, fontWeight: FONT_WEIGHT.bold },
+  createBracketSub: { fontSize: FONT_SIZE.sm, textAlign: 'center', lineHeight: 20 },
+  createBracketBtn: {
+    width: '100%',
+    height: 50,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.xs,
+  },
+  createBracketBtnText: { color: '#FFF', fontSize: FONT_SIZE.base, fontWeight: FONT_WEIGHT.bold },
   picksBanner: {
     margin: SPACING.base,
     borderRadius: 12,
