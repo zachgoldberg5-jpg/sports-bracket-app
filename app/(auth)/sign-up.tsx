@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { useAuthStore } from '../../store/authStore';
@@ -21,6 +21,7 @@ export default function SignUpScreen() {
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
 
+  const { inviteCode } = useLocalSearchParams<{ inviteCode?: string }>();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -52,9 +53,9 @@ export default function SignUpScreen() {
     if (error) {
       setErrorMsg(error);
     } else if (!supabaseConfigured) {
-      router.replace('/(tabs)');
+      router.replace(inviteCode ? `/(tabs)/groups/join?code=${inviteCode}` : '/(tabs)');
     } else {
-      router.replace('/(auth)/sign-in?registered=1');
+      router.replace(inviteCode ? `/(auth)/sign-in?registered=1&inviteCode=${inviteCode}` : '/(auth)/sign-in?registered=1');
     }
   }
 
@@ -183,7 +184,7 @@ export default function SignUpScreen() {
           <Text style={[styles.signinText, { color: theme.textSecondary }]}>
             Already have an account?{' '}
           </Text>
-          <TouchableOpacity onPress={() => router.replace('/(auth)/sign-in')}>
+          <TouchableOpacity onPress={() => router.replace(inviteCode ? `/(auth)/sign-in?inviteCode=${inviteCode}` : '/(auth)/sign-in')}>
             <Text style={[styles.signinLink, { color: COLORS.primary }]}>Sign In</Text>
           </TouchableOpacity>
         </View>

@@ -25,7 +25,7 @@ export default function SignInScreen() {
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
 
-  const { registered } = useLocalSearchParams<{ registered?: string }>();
+  const { registered, inviteCode } = useLocalSearchParams<{ registered?: string; inviteCode?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,6 +49,8 @@ export default function SignInScreen() {
       } else {
         setErrorMsg(error);
       }
+    } else if (inviteCode) {
+      router.replace(`/(tabs)/groups/join?code=${inviteCode}`);
     } else {
       router.replace('/(tabs)');
     }
@@ -112,7 +114,11 @@ export default function SignInScreen() {
     if (result.type === 'success') {
       const { url } = result;
       await supabase.auth.exchangeCodeForSession(url);
-      router.replace('/(tabs)');
+      if (inviteCode) {
+        router.replace(`/(tabs)/groups/join?code=${inviteCode}`);
+      } else {
+        router.replace('/(tabs)');
+      }
     }
   }
 
@@ -225,7 +231,7 @@ export default function SignInScreen() {
           <Text style={[styles.signupText, { color: theme.textSecondary }]}>
             Don't have an account?{' '}
           </Text>
-          <TouchableOpacity onPress={() => router.replace('/(auth)/sign-up')}>
+          <TouchableOpacity onPress={() => router.replace(inviteCode ? `/(auth)/sign-up?inviteCode=${inviteCode}` : '/(auth)/sign-up')}>
             <Text style={[styles.signupLink, { color: COLORS.primary }]}>Sign Up</Text>
           </TouchableOpacity>
         </View>
