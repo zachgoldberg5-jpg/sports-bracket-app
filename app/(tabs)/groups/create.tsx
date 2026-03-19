@@ -11,13 +11,15 @@ import {
   Platform,
   Share,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useGroupStore } from '../../../store/groupStore';
 import { useAuthStore } from '../../../store/authStore';
 import { useLeagues } from '../../../hooks/useLeague';
 import { PremiumGate } from '../../../components/ui/PremiumGate';
-import { LEAGUE_CONFIGS, LEAGUE_EMOJI } from '../../../constants/leagues';
+import { LEAGUE_CONFIGS } from '../../../constants/leagues';
+import { LeagueLogo } from '../../../components/ui/LeagueLogo';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SPACING } from '../../../constants/theme';
 import { format, addDays } from 'date-fns';
 import type { Group, LeagueId } from '../../../types';
@@ -84,11 +86,7 @@ export default function CreateGroupScreen() {
 
   async function handleCopyCode() {
     if (!createdGroup) return;
-    try {
-      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(createdGroup.inviteCode);
-      }
-    } catch { /* ignore */ }
+    await Clipboard.setStringAsync(createdGroup.inviteCode);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
   }
@@ -101,12 +99,8 @@ export default function CreateGroupScreen() {
           const basePath = match ? match[1] : '';
           return `${window.location.origin}${basePath}/groups/join?code=${createdGroup.inviteCode}`;
         })()
-      : `Join code: ${createdGroup.inviteCode}`;
-    try {
-      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(link);
-      }
-    } catch { /* ignore */ }
+      : `Invite code: ${createdGroup.inviteCode}`;
+    await Clipboard.setStringAsync(link);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   }
@@ -217,7 +211,7 @@ export default function CreateGroupScreen() {
                 ]}
                 onPress={() => setSelectedLeague(league.id)}
               >
-                <Text style={styles.leagueEmoji}>{LEAGUE_EMOJI[league.id]}</Text>
+                <LeagueLogo leagueId={league.id} size={28} />
                 <View>
                   <Text style={[styles.leagueName, { color: selected ? league.primaryColor : theme.text }]}>
                     {LEAGUE_CONFIGS[league.id].name}

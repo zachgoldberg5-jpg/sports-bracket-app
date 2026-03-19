@@ -38,8 +38,9 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "baseUrl": "/sports-bracket-app"
     },
     "plugins": [
       "expo-router",
@@ -64,8 +65,7 @@
       "expo-apple-authentication"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "baseUrl": "/sports-bracket-app"
+      "typedRoutes": true
     },
     "extra": {
       "router": {
