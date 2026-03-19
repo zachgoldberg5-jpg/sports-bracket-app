@@ -205,24 +205,33 @@ export const useGroupStore = create<GroupState>((set, get) => ({
 
     if (!group) return null;
 
-    // Check free tier limit
-    const { groups } = get();
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('subscription_tier')
-      .eq('id', userId)
+    // Check if already a member
+    const { data: existing } = await supabase
+      .from('group_members')
+      .select('group_id')
+      .match({ group_id: group.id, user_id: userId })
       .single();
 
-    if (profile?.subscription_tier === 'free' && groups.length >= 2) {
-      return null; // caller should show PremiumGate
+    if (!existing) {
+      // Check free tier limit
+      const { groups } = get();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_tier')
+        .eq('id', userId)
+        .single();
+
+      if (profile?.subscription_tier === 'free' && groups.length >= 2) {
+        return null; // caller should show PremiumGate
+      }
+
+      const { error } = await supabase.from('group_members').insert({
+        group_id: group.id,
+        user_id: userId,
+      });
+
+      if (error) return null;
     }
-
-    const { error } = await supabase.from('group_members').insert({
-      group_id: group.id,
-      user_id: userId,
-    });
-
-    if (error) return null;
 
     await get().loadGroups(userId);
     return get().groups.find((g) => g.id === group.id) ?? null;
