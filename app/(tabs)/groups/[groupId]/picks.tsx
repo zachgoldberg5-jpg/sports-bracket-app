@@ -108,8 +108,11 @@ export default function PicksScreen() {
     await savePrediction(predictions, displayBracket);
     if (Platform.OS === 'web') {
       window.alert('Saved! Your picks have been saved.');
+      router.back();
     } else {
-      Alert.alert('Saved!', 'Your picks have been saved. You can update them until the deadline.');
+      Alert.alert('Saved!', 'Your picks have been saved. You can update them until the deadline.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
     }
   }
 
@@ -119,8 +122,11 @@ export default function PicksScreen() {
     await lockPrediction();
     if (Platform.OS === 'web') {
       window.alert('Picks Locked! Your bracket is locked in. Good luck!');
+      router.back();
     } else {
-      Alert.alert('Picks Locked', 'Your bracket is locked in. Good luck!');
+      Alert.alert('Picks Locked', 'Your bracket is locked in. Good luck!', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
     }
   }
 
