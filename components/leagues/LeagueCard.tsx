@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColorScheme } from 'react-native';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SHADOW, SPACING } from '../../constants/theme';
-import { LEAGUE_EMOJI } from '../../constants/leagues';
 import { StatusBadge } from './StatusBadge';
+import { LeagueLogo } from '../ui/LeagueLogo';
 import type { League, LeagueId } from '../../types';
 
 interface LeagueCardProps {
@@ -15,7 +15,6 @@ interface LeagueCardProps {
 export function LeagueCard({ league, onPress }: LeagueCardProps) {
   const scheme = useColorScheme();
   const theme = scheme === 'dark' ? COLORS.dark : COLORS.light;
-  const emoji = LEAGUE_EMOJI[league.id as LeagueId] ?? '🏆';
 
   return (
     <TouchableOpacity
@@ -30,7 +29,7 @@ export function LeagueCard({ league, onPress }: LeagueCardProps) {
         style={StyleSheet.absoluteFill}
       />
       <View style={[styles.iconWrap, { backgroundColor: league.primaryColor + '44' }]}>
-        <Text style={styles.emoji}>{emoji}</Text>
+        <LeagueLogo leagueId={league.id as LeagueId} size={34} />
       </View>
       <View style={styles.content}>
         <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
@@ -59,14 +58,14 @@ const styles = StyleSheet.create({
     minHeight: 72,
   },
   iconWrap: {
-    width: 52,
+    minWidth: 52,
     height: 52,
     borderRadius: RADIUS.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: SPACING.sm,
     margin: SPACING.base,
   },
-  emoji: { fontSize: 26 },
   content: {
     flex: 1,
     paddingVertical: SPACING.base,

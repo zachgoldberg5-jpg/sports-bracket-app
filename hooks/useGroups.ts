@@ -28,8 +28,11 @@ export function useGroup(groupId: string) {
   const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
-    store.loadGroup(groupId);
-    store.loadMembers(groupId);
+    const init = async () => {
+      await store.loadGroup(groupId);
+      await store.loadMembers(groupId);
+    };
+    init();
   }, [groupId]);
 
   useEffect(() => {

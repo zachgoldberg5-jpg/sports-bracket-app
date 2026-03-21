@@ -29,6 +29,7 @@ export function BracketMatch({
 
   const isPredictionMode = !!onPickTeam;
   const isFinal = match.status === 'final';
+  const isLive = match.status === 'live';
   const isTbd = !match.homeTeam && !match.awayTeam;
 
   function TeamRow({ team, score, isWinner, isPicked }: {
@@ -88,16 +89,21 @@ export function BracketMatch({
       </Text>
     );
 
-    const scoreEl = isFinal && score !== undefined ? (
+    const scoreEl = (isFinal || isLive) && score !== undefined ? (
       <Text style={[styles.score, { color: isWinner ? theme.text : theme.textTertiary }, isWinner && { fontWeight: FONT_WEIGHT.bold }]}>
         {score}
       </Text>
     ) : null;
 
-    const winEl = isWinner && !isPredictionMode ? (
-      <Text style={styles.winCheck}>✓</Text>
-    ) : isPredictionMode && isPicked ? (
+    const pickedWrong = isPicked && isFinal && !isWinner;
+    const pickedRight = isPicked && isFinal && isWinner;
+
+    const winEl = isPredictionMode && isPicked ? (
       <View style={[styles.pickDot, { backgroundColor: primaryColor }]} />
+    ) : pickedWrong ? (
+      <Text style={styles.wrongPick}>✗</Text>
+    ) : pickedRight || (isWinner && !isPredictionMode) ? (
+      <Text style={styles.winCheck}>✓</Text>
     ) : null;
 
     return (
@@ -216,6 +222,12 @@ const styles = StyleSheet.create({
   winCheck: {
     fontSize: 11,
     color: COLORS.success,
+    marginLeft: 2,
+    fontWeight: FONT_WEIGHT.bold,
+  },
+  wrongPick: {
+    fontSize: 11,
+    color: '#EF4444',
     marginLeft: 2,
     fontWeight: FONT_WEIGHT.bold,
   },

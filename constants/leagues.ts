@@ -92,17 +92,17 @@ export const LEAGUE_CONFIGS: Record<LeagueId, Omit<League, 'status' | 'season'>>
   },
 };
 
-// Tournament/league logo URLs (ESPN CDN) — falls back to emoji on error
-export const LEAGUE_LOGOS: Record<LeagueId, string> = {
+// Tournament/league logo URLs — falls back to emoji on error
+export const LEAGUE_LOGOS: Record<LeagueId, string | null> = {
   nba:     'https://a.espncdn.com/i/teamlogos/leagues/500/nba.png',
   nfl:     'https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png',
   nhl:     'https://a.espncdn.com/i/teamlogos/leagues/500/nhl.png',
   mlb:     'https://a.espncdn.com/i/teamlogos/leagues/500/mlb.png',
   mls:     'https://a.espncdn.com/i/teamlogos/leagues/500/mls.png',
-  ncaa_mm: 'https://a.espncdn.com/i/teamlogos/leagues/500/ncaa.png',
-  ucl:     'https://a.espncdn.com/i/teamlogos/soccer/500/665.png',
-  fifa_wc: 'https://a.espncdn.com/i/teamlogos/soccer/500/FIFA.WC.png',
-  wbc:     'https://a.espncdn.com/i/teamlogos/leagues/500/wbc.png',
+  ncaa_mm: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/March_Madness_logo.svg/500px-March_Madness_logo.svg.png',
+  ucl:     'https://a.espncdn.com/i/leaguelogos/soccer/500-dark/2.png',
+  fifa_wc: 'https://a.espncdn.com/i/leaguelogos/soccer/500/4.png',
+  wbc:     'https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/WBC_Symbol.svg/500px-WBC_Symbol.svg.png',
 };
 
 // Sport emoji for UI display

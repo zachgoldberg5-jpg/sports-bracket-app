@@ -3,7 +3,6 @@ import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
-  Image,
   FlatList,
   StyleSheet,
   TouchableOpacity,
@@ -19,27 +18,11 @@ import { router, Stack } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { useGroupStore } from '../../store/groupStore';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { LeagueLogo } from '../../components/ui/LeagueLogo';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
-import { LEAGUE_CONFIGS, LEAGUE_EMOJI, LEAGUE_LOGOS } from '../../constants/leagues';
+import { LEAGUE_CONFIGS, LEAGUE_EMOJI } from '../../constants/leagues';
 import { format } from 'date-fns';
 import type { UserPrediction, LeagueId } from '../../types';
-
-function LeagueLogo({ leagueId, emoji, size = 32 }: { leagueId?: LeagueId; emoji: string; size?: number }) {
-  const [failed, setFailed] = React.useState(false);
-  const logoUrl = leagueId ? LEAGUE_LOGOS[leagueId] : undefined;
-
-  if (logoUrl && !failed) {
-    return (
-      <Image
-        source={{ uri: logoUrl }}
-        style={{ width: size, height: size }}
-        resizeMode="contain"
-        onError={() => setFailed(true)}
-      />
-    );
-  }
-  return <Text style={{ fontSize: size * 0.75 }}>{emoji}</Text>;
-}
 
 export default function MyBracketsScreen() {
   const scheme = useColorScheme();
@@ -98,7 +81,7 @@ export default function MyBracketsScreen() {
         <View style={[styles.cardAccent, { backgroundColor: primaryColor }]} />
         <View style={styles.cardBody}>
           <View style={styles.cardTop}>
-            <LeagueLogo leagueId={leagueId} emoji={emoji} size={32} />
+            <LeagueLogo leagueId={leagueId ?? 'nba'} size={32} />
             <View style={styles.cardInfo}>
               <Text style={[styles.cardLeague, { color: theme.text }]} numberOfLines={1}>
                 {displayName}

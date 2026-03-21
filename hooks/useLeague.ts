@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLeagueStore } from '../store/leagueStore';
 import type { LeagueId } from '../types';
 
@@ -31,6 +31,15 @@ export function useLeague(leagueId: LeagueId) {
       store.loadStandings(leagueId);
     }
   }, [leagueId]);
+
+  // Auto-poll scores every 30s while the league is live
+  useEffect(() => {
+    if (league?.status !== 'live') return;
+    const interval = setInterval(() => {
+      store.refreshLeague(leagueId);
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [leagueId, league?.status]);
 
   return {
     league,

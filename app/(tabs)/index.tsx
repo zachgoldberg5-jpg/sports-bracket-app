@@ -16,6 +16,7 @@ import { useAuthStore } from '../../store/authStore';
 import { LeagueCard } from '../../components/leagues/LeagueCard';
 import { LeagueCardSkeleton } from '../../components/ui/SkeletonLoader';
 import { COLORS, FONT_SIZE, FONT_WEIGHT, RADIUS, SPACING } from '../../constants/theme';
+import { LeagueLogo } from '../../components/ui/LeagueLogo';
 import type { League } from '../../types';
 
 export default function HomeScreen() {
@@ -102,7 +103,7 @@ export default function HomeScreen() {
                   style={styles.mmGradient}
                 >
                   <View style={styles.mmContent}>
-                    <Text style={styles.mmEmoji}>🏀</Text>
+                    <LeagueLogo leagueId="ncaa_mm" size={34} />
                     <View style={styles.mmText}>
                       <Text style={styles.mmTitle}>March Madness</Text>
                       <Text style={styles.mmSub}>
@@ -178,7 +179,6 @@ const styles = StyleSheet.create({
   },
   mmGradient: { padding: SPACING.base },
   mmContent: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  mmEmoji: { fontSize: 40 },
   mmText: { flex: 1 },
   mmTitle: { fontSize: FONT_SIZE.lg, fontWeight: FONT_WEIGHT.extrabold, color: '#FFF' },
   mmSub: { fontSize: FONT_SIZE.sm, color: 'rgba(255,255,255,0.85)', marginTop: 2 },

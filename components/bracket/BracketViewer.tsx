@@ -515,7 +515,7 @@ export function BracketViewer({
                   >
                     <BracketMatch
                       match={match}
-                      onPickTeam={handlePickTeam}
+                      onPickTeam={onPickTeam ? handlePickTeam : undefined}
                       selectedTeamId={predictions[match.id]}
                       isLocked={isLocked}
                       primaryColor={primaryColor}
@@ -536,7 +536,7 @@ export function BracketViewer({
                   >
                     <BracketMatch
                       match={match}
-                      onPickTeam={handlePickTeam}
+                      onPickTeam={onPickTeam ? handlePickTeam : undefined}
                       selectedTeamId={predictions[match.id]}
                       isLocked={isLocked}
                       primaryColor={primaryColor}
@@ -551,7 +551,7 @@ export function BracketViewer({
             <View style={{ position: 'absolute', left: finalX, top: finalY }}>
               <BracketMatch
                 match={finalRound.matches[0]}
-                onPickTeam={handlePickTeam}
+                onPickTeam={onPickTeam ? handlePickTeam : undefined}
                 selectedTeamId={predictions[finalRound.matches[0]?.id ?? '']}
                 isLocked={isLocked}
                 primaryColor={primaryColor}

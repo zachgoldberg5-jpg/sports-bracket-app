@@ -70,7 +70,7 @@ export function LeaderboardRow({ member, isCurrentUser, showDivider = true, onPr
         </View>
         <Text style={[styles.accuracy, { color: theme.textSecondary }]}>
           {member.correctPicks}/{member.totalPicks} correct · {accuracy}%
-          {onPress && !isCurrentUser && (
+          {onPress && (
             <Text style={[styles.viewBracket, { color: COLORS.primary }]}> · View Bracket</Text>
           )}
         </Text>
@@ -84,7 +84,7 @@ export function LeaderboardRow({ member, isCurrentUser, showDivider = true, onPr
     </>
   );
 
-  if (onPress && !isCurrentUser) {
+  if (onPress) {
     return (
       <TouchableOpacity style={rowStyle} onPress={onPress} activeOpacity={0.7}>
         {inner}
