@@ -4,7 +4,7 @@
  * with AsyncStorage caching to minimise API calls.
  */
 
-import type { Bracket, BracketRound, Match, Team, ConferenceStandings, LeagueId, LeagueStatus } from '../types';
+import type { Bracket, BracketRound, Match, MatchStatus, Team, ConferenceStandings, LeagueId, LeagueStatus } from '../types';
 import { ESPN_LEAGUE_PATHS, getDisplaySeason } from '../constants/leagues';
 import { fetchEspnStandings, fetchEspnBracket } from './espnApi';
 import { fetchSportsDbStandings, fetchSportsDbEvents } from './theSportsDb';
@@ -34,13 +34,13 @@ export async function getStandings(leagueId: LeagueId): Promise<ConferenceStandi
 
 export async function getBracket(leagueId: LeagueId, season?: string): Promise<Bracket> {
   return withCache(
-    `bracket_${leagueId}_${season ?? 'current'}`,
+    `bracket_${leagueId}_${season ?? 'current'}_v2`,
     async () => {
       if (leagueId === 'wbc') {
         return getWbc2026Bracket();
       }
       if (leagueId === 'ncaa_mm') {
-        return getNcaaMm2026Bracket();
+        return getNcaaMm2026BracketWithResults();
       }
       if (supabaseConfigured) {
         const sb = await fetchSupabaseBracket(leagueId);
@@ -195,6 +195,191 @@ function getWbc2026Bracket(): Bracket {
       },
     ],
   };
+}
+
+// ─── NCAA March Madness live results overlay ──────────────────────────────────
+
+/** Extract ESPN numeric team ID from a CDN logo URL like
+ *  https://a.espncdn.com/i/teamlogos/ncaa/500/150.png → "150" */
+function extractEspnTeamId(logoUrl?: string): string | null {
+  if (!logoUrl) return null;
+  const m = logoUrl.match(/\/(\d+)\.png$/);
+  return m ? m[1] : null;
+}
+
+/**
+ * Map a game's UTC start time to our bracket round index (0-based) for the
+ * 2026 NCAA tournament. Returns null for First Four games or unrecognised dates.
+ * Games are played in ET (EDT = UTC-4 in March/April 2026).
+ */
+function ncaa2026RoundIndex(isoDate?: string): number | null {
+  if (!isoDate) return null;
+  const d = new Date(isoDate);
+  const etDate = new Date(d.getTime() - 4 * 3_600_000); // shift to ET
+  const month = etDate.getUTCMonth(); // 0-indexed: 2=March, 3=April
+  const day   = etDate.getUTCDate();
+  if (month === 2) {
+    if (day >= 20 && day <= 21) return 0; // Round of 64
+    if (day >= 22 && day <= 23) return 1; // Round of 32
+    if (day >= 27 && day <= 28) return 2; // Sweet 16
+    if (day >= 29 && day <= 30) return 3; // Elite Eight
+  }
+  if (month === 3) {
+    if (day >= 4 && day <= 5)   return 4; // Final Four
+    if (day >= 6 && day <= 7)   return 5; // Championship
+  }
+  return null; // First Four or unknown
+}
+
+interface NcaaGameResult {
+  homeId: string; awayId: string;
+  homeIsWinner: boolean;
+  homeScore: number; awayScore: number;
+  status: MatchStatus;
+  startTime: string;
+}
+
+function parseNcaaGames(events: Array<Record<string, unknown>>): NcaaGameResult[] {
+  const out: NcaaGameResult[] = [];
+  for (const event of events) {
+    const comps = (event.competitions as Array<Record<string, unknown>>) ?? [];
+    const comp  = comps[0] ?? {};
+    const competitors = (comp.competitors as Array<Record<string, unknown>>) ?? [];
+    const homeComp = competitors.find((c) => c.homeAway === 'home');
+    const awayComp = competitors.find((c) => c.homeAway === 'away');
+    if (!homeComp || !awayComp) continue;
+    const ht = homeComp.team as Record<string, unknown>;
+    const at = awayComp.team  as Record<string, unknown>;
+    const state = ((comp.status as Record<string, unknown>)?.type as Record<string, unknown>)?.state ?? '';
+    let status: MatchStatus = 'scheduled';
+    if (state === 'in' || state === 'in_game') status = 'live';
+    else if (state === 'post') status = 'final';
+    out.push({
+      homeId:       String(ht.id ?? ''),
+      awayId:       String(at.id ?? ''),
+      homeIsWinner: (homeComp.winner as boolean) === true,
+      homeScore:    Number((homeComp.score as string) ?? 0),
+      awayScore:    Number((awayComp.score as string) ?? 0),
+      status,
+      startTime:    String(event.date ?? ''),
+    });
+  }
+  return out;
+}
+
+/**
+ * Fetch live ESPN NCAA tournament results and overlay them onto the static
+ * bracket structure, preserving our stable match IDs so existing predictions
+ * continue to score correctly.
+ */
+async function applyNcaaLiveResults(base: Bracket): Promise<Bracket> {
+  const url =
+    'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?seasontype=3&groups=50&limit=200';
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) return base;
+  const data   = await (res.json() as Promise<Record<string, unknown>>);
+  const events = (data.events as Array<Record<string, unknown>>) ?? [];
+  if (!events.length) return base;
+
+  const games = parseNcaaGames(events);
+
+  // Build ESPN numeric team ID → our Team lookup from all Round-1 teams.
+  // Every team in the 64-team bracket appears in Round 1, so this covers them all.
+  const espnIdToTeam = new Map<string, Team>();
+  for (const match of base.rounds[0]?.matches ?? []) {
+    const hi = extractEspnTeamId(match.homeTeam?.logoUrl);
+    const ai = extractEspnTeamId(match.awayTeam?.logoUrl);
+    if (hi && match.homeTeam) espnIdToTeam.set(hi, match.homeTeam);
+    if (ai && match.awayTeam) espnIdToTeam.set(ai, match.awayTeam);
+  }
+
+  // Group games by bracket round index
+  const gamesByRound = new Map<number, NcaaGameResult[]>();
+  for (const g of games) {
+    const ri = ncaa2026RoundIndex(g.startTime);
+    if (ri === null) continue;
+    const arr = gamesByRound.get(ri) ?? [];
+    arr.push(g);
+    gamesByRound.set(ri, arr);
+  }
+
+  // posWinners[position] = our Team that won that bracket position
+  const posWinners = new Map<number, Team>();
+
+  const updatedRounds = base.rounds.map((round, ri) => {
+    const roundGames = gamesByRound.get(ri) ?? [];
+
+    // Per-round lookup: ESPN team ID → game
+    const gameByEspnId = new Map<string, NcaaGameResult>();
+    for (const g of roundGames) {
+      gameByEspnId.set(g.homeId, g);
+      gameByEspnId.set(g.awayId, g);
+    }
+
+    const matches = round.matches.map((match) => {
+      let homeTeam = match.homeTeam;
+      let awayTeam = match.awayTeam;
+
+      // Propagate previous-round winners into TBD team slots
+      if (ri > 0) {
+        if (!homeTeam) homeTeam = posWinners.get(match.position * 2);
+        if (!awayTeam) awayTeam = posWinners.get(match.position * 2 + 1);
+      }
+
+      const homeEspnId = extractEspnTeamId(homeTeam?.logoUrl);
+      const awayEspnId  = extractEspnTeamId(awayTeam?.logoUrl);
+      const game = (homeEspnId ? gameByEspnId.get(homeEspnId) : undefined)
+                ?? (awayEspnId  ? gameByEspnId.get(awayEspnId)  : undefined);
+
+      if (!game) return { ...match, homeTeam, awayTeam };
+
+      // Determine score orientation relative to our home/away assignment
+      const homeIsEspnHome = homeEspnId === game.homeId;
+      const homeScore = homeIsEspnHome ? game.homeScore : game.awayScore;
+      const awayScore  = homeIsEspnHome ? game.awayScore  : game.homeScore;
+      const winnerEspnId = game.homeIsWinner ? game.homeId : game.awayId;
+      const loserEspnId  = game.homeIsWinner ? game.awayId : game.homeId;
+
+      let winnerId = match.winnerId;
+      if (game.status === 'final') {
+        // Try direct ID lookup first
+        let winnerTeam = espnIdToTeam.get(winnerEspnId);
+        if (!winnerTeam) {
+          // Winner's ESPN ID is unknown → must be a First Four placeholder.
+          // The loser is a known team, so the winner is the other slot.
+          const loserTeam = espnIdToTeam.get(loserEspnId);
+          if (loserTeam) {
+            winnerTeam = loserTeam.id === homeTeam?.id ? awayTeam : homeTeam;
+          }
+        }
+        winnerId = winnerTeam?.id;
+        if (winnerTeam) {
+          posWinners.set(match.position, winnerTeam);
+          // Register winner's ESPN ID so later rounds can look them up
+          if (!espnIdToTeam.has(winnerEspnId)) {
+            espnIdToTeam.set(winnerEspnId, winnerTeam);
+          }
+        }
+      }
+
+      return { ...match, homeTeam, awayTeam, status: game.status, winnerId, homeScore, awayScore };
+    });
+
+    return { ...round, matches };
+  });
+
+  return { ...base, rounds: updatedRounds, updatedAt: new Date().toISOString() };
+}
+
+/** Wrapper that tries to overlay live ESPN results; falls back to the static
+ *  bracket if the network request fails. */
+async function getNcaaMm2026BracketWithResults(): Promise<Bracket> {
+  const base = getNcaaMm2026Bracket();
+  try {
+    return await applyNcaaLiveResults(base);
+  } catch {
+    return base;
+  }
 }
 
 // ─── NCAA March Madness 2026 bracket ─────────────────────────────────────────

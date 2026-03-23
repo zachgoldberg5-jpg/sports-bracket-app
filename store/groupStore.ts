@@ -260,19 +260,20 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   },
 
   updateDeadline: async (groupId, deadline) => {
-    const { error } = await supabase
-      .from('groups')
-      .update({ pick_deadline: deadline?.toISOString() ?? null })
-      .eq('id', groupId);
-    if (error) return false;
     const iso = deadline?.toISOString() ?? null;
+    // Optimistic update — UI responds immediately regardless of network
     set((s) => ({
       currentGroup: s.currentGroup?.id === groupId
         ? { ...s.currentGroup, pickDeadline: iso }
         : s.currentGroup,
       groups: s.groups.map((g) => g.id === groupId ? { ...g, pickDeadline: iso } : g),
     }));
-    return true;
+    const { error } = await supabase
+      .from('groups')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ pick_deadline: iso as any })
+      .eq('id', groupId);
+    return !error;
   },
 
   deleteGroup: async (groupId) => {
